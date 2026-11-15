@@ -91,7 +91,8 @@
         }
         .sound-icon.efectos   { background: linear-gradient(135deg, #ff9800, #f57c00); }
         .sound-icon.sintonias { background: linear-gradient(135deg, #f06292, #e91e63); }
-        .sound-icon.musica    { background: linear-gradient(135deg, #00acc1, #00838f); }
+        .sound-icon.sintonias_precargadas, .sound-icon.sintonias-precargadas { background: linear-gradient(135deg, #00acc1, #00838f); }
+        .sound-icon.musica    { background: linear-gradient(135deg, #4caf50, #388e3c); }
         .sound-info { flex: 1; min-width: 0; }
         .sound-title { font-weight: bold; font-size: 14px; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .sound-url { font-size: 11px; color: #aaa; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -167,6 +168,9 @@
     </button>
     <button class="tab-btn" data-cat="sintonias">
         <i class="fa-solid fa-music"></i> Sintonías <span class="tab-badge" id="badge-sintonias">0</span>
+    </button>
+    <button class="tab-btn" data-cat="sintonias_precargadas">
+        <i class="fa-solid fa-star"></i> Sintonías Precargadas <span class="tab-badge" id="badge-sintonias_precargadas">0</span>
     </button>
     <button class="tab-btn" data-cat="musica">
         <i class="fa-solid fa-headphones"></i> Música de Fondo <span class="tab-badge" id="badge-musica">0</span>
@@ -281,16 +285,18 @@ async function loadSounds() {
 }
 
 function updateBadges() {
-    ['efectos','sintonias','musica'].forEach(cat => {
-        document.getElementById('badge-' + cat).textContent =
-            allSounds.filter(s => s.category === cat).length;
+    ['efectos','sintonias','sintonias_precargadas','musica'].forEach(cat => {
+        const el = document.getElementById('badge-' + cat);
+        if (el) {
+            el.textContent = allSounds.filter(s => s.category === cat || (cat === 'sintonias_precargadas' && s.category === 'sintonias-precargadas')).length;
+        }
     });
     document.getElementById('totalCount').textContent = allSounds.length + ' sonidos en total';
 }
 
 function renderGrid() {
     const grid = document.getElementById('soundsGrid');
-    const items = allSounds.filter(s => s.category === currentCat)
+    const items = allSounds.filter(s => s.category === currentCat || (currentCat === 'sintonias_precargadas' && s.category === 'sintonias-precargadas'))
                            .sort((a,b) => (a.order||0)-(b.order||0));
     if (!items.length) {
         grid.innerHTML = '<div class="empty-state"><i class="fa-solid fa-music"></i><p>No hay sonidos en esta categoría.<br>Sube archivos o inicializa los predeterminados.</p></div>';
@@ -298,9 +304,10 @@ function renderGrid() {
     }
     grid.innerHTML = items.map(s => {
         const fname = s.url.split('/').pop().split('?')[0];
+        const catClass = (s.category === 'sintonias_precargadas' || s.category === 'sintonias-precargadas') ? 'sintonias_precargadas' : s.category;
         return `<div class="sound-card">
             <div class="sound-card-top">
-                <div class="sound-icon ${s.category}"><i class="fa-solid ${s.icon||'fa-music'}"></i></div>
+                <div class="sound-icon ${catClass}"><i class="fa-solid ${s.icon||'fa-music'}"></i></div>
                 <div class="sound-info">
                     <div class="sound-title" title="${s.title}">${s.title}</div>
                     <div class="sound-url" title="${s.url}">${fname}</div>
@@ -357,6 +364,7 @@ function editSound(docId) {
                 <select id="editCat" class="swal2-select" style="display:block;width:100%;margin:4px 0 0;font-size:14px;">
                     <option value="efectos"   ${sound.category==='efectos'?'selected':''}>🔊 Efectos</option>
                     <option value="sintonias" ${sound.category==='sintonias'?'selected':''}>🎵 Sintonías</option>
+                    <option value="sintonias_precargadas" ${(sound.category==='sintonias_precargadas'||sound.category==='sintonias-precargadas')?'selected':''}>⭐ Sintonías Precargadas</option>
                     <option value="musica"    ${sound.category==='musica'?'selected':''}>🎶 Música de Fondo</option>
                 </select>
             </div>
@@ -443,7 +451,12 @@ async function handleFiles(files) {
             });
             const url = uploadResult.url;
             const title = file.name.replace(/\.[^.]+$/, '').replace(/[-_]/g,' ');
-            const iconMap = { efectos: 'fa-burst', sintonias: 'fa-music', musica: 'fa-headphones' };
+            const iconMap = {
+                efectos: 'fa-burst',
+                sintonias: 'fa-music',
+                sintonias_precargadas: 'fa-star',
+                musica: 'fa-headphones'
+            };
             const newId = await dbService.addSound({ title, url, category: currentCat, icon: iconMap[currentCat], order: allSounds.length });
             allSounds.push({ docId: newId, title, url, category: currentCat, icon: iconMap[currentCat] });
             uploaded++;

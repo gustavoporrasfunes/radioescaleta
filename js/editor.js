@@ -82,11 +82,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
             const sounds = await dbService.getSoundLibrary();
             if (sounds && sounds.length > 0) {
-                sharedLibrary = { sintonias: [], efectos: [], musica: [] };
+                sharedLibrary = { sintonias: [], sintonias_precargadas: [], efectos: [], musica: [] };
                 sounds.forEach(s => {
-                    if (sharedLibrary[s.category]) {
-                        sharedLibrary[s.category].push({ title: s.title, url: s.url, icon: s.icon });
-                    }
+                    const cat = (s.category === 'sintonias-precargadas' || s.category === 'sintonias_precargadas')
+                        ? 'sintonias_precargadas'
+                        : s.category;
+                    if (!sharedLibrary[cat]) sharedLibrary[cat] = [];
+                    sharedLibrary[cat].push({ title: s.title, url: s.url, icon: s.icon || 'fa-star' });
                 });
             }
         } catch(e) {
@@ -423,24 +425,61 @@ async function initEditor(user) {
             const file = e.target.files[0];
             const btn = document.getElementById('btnUploadDrive');
             try {
-                // 1. Preguntar categoría antes de empezar la subida
+                const cleanName = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ");
+
+                // 1. Preguntar título, categoría y opción de Sintonía Precargada
                 const catResult = await Swal.fire({
-                    title: 'Categoría del audio',
-                    html: '<p style="margin-bottom:15px;">¿En qué canal del mezclador irá este audio?</p>',
-                    input: 'select',
-                    inputOptions: {
-                        'sintonia': '🎙️ Sintonía (cabecera / cierre)',
-                        'efectos': '⚡ Efecto de sonido',
-                        'musica': '🎵 Música de fondo',
-                    },
-                    inputValue: 'efectos',
+                    title: '<div style="color:#00acc1;display:flex;align-items:center;gap:8px;justify-content:center;"><i class="fa-solid fa-cloud-arrow-up"></i> Subir Audio</div>',
+                    html: `
+                        <div style="text-align:left;display:flex;flex-direction:column;gap:14px;padding:6px 0;">
+                            <div>
+                                <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:4px;">Nombre del audio:</label>
+                                <input type="text" id="swalUploadTitle" value="${cleanName}" style="width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid #cbd5e1;border-radius:6px;font-size:14px;">
+                            </div>
+                            <div>
+                                <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:4px;">Canal / Categoría en la escaleta:</label>
+                                <select id="swalUploadCat" style="width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;">
+                                    <option value="sintonia">🎙️ Sintonía (cabecera, ráfaga o cierre)</option>
+                                    <option value="efectos">⚡ Efecto de sonido</option>
+                                    <option value="musica">🎵 Música de fondo</option>
+                                </select>
+                            </div>
+                            <div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:8px;padding:12px;">
+                                <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:13px;color:#166534;font-weight:600;">
+                                    <input type="checkbox" id="swalAssignPreloaded" style="width:18px;height:18px;accent-color:#16a34a;margin-top:2px;" checked>
+                                    <div>
+                                        <span>⭐ Asignar al paquete de Sintonías Precargadas</span>
+                                        <div style="font-size:11px;font-weight:normal;color:#15803d;margin-top:3px;line-height:1.4;">
+                                            Guardar en la biblioteca compartida para reutilizar en cualquier programa nuevo desde el botón "Sintonías precargadas".
+                                        </div>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+                    `,
                     showCancelButton: true,
-                    confirmButtonText: 'Subir',
-                    confirmButtonColor: '#f06292'
+                    confirmButtonText: 'Subir y Añadir',
+                    cancelButtonText: 'Cancelar',
+                    confirmButtonColor: '#00acc1',
+                    didOpen: () => {
+                        const catSel = document.getElementById('swalUploadCat');
+                        const check = document.getElementById('swalAssignPreloaded');
+                        catSel.addEventListener('change', () => {
+                            if (catSel.value === 'sintonia') {
+                                check.checked = true;
+                            }
+                        });
+                    },
+                    preConfirm: () => {
+                        const title = document.getElementById('swalUploadTitle').value.trim() || cleanName;
+                        const category = document.getElementById('swalUploadCat').value;
+                        const assignPreloaded = document.getElementById('swalAssignPreloaded').checked;
+                        return { title, category, assignPreloaded };
+                    }
                 });
 
                 if (!catResult.isConfirmed) return;
-                const chosenCategory = catResult.value;
+                const { title: finalTitle, category: chosenCategory, assignPreloaded } = catResult.value;
 
                 // 2. Mostrar modal interactivo con barra de progreso
                 Swal.fire({
@@ -448,7 +487,7 @@ async function initEditor(user) {
                     html: `
                         <div style="margin: 15px 0; text-align: left;">
                             <div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:8px; color:#444;">
-                                <span style="font-weight:bold; overflow:hidden; text-overflow:ellipsis; max-width:240px; white-space:nowrap;">${file.name}</span>
+                                <span style="font-weight:bold; overflow:hidden; text-overflow:ellipsis; max-width:240px; white-space:nowrap;">${finalTitle}</span>
                                 <span id="uploadPercent" style="font-weight:bold; color:#f06292;">0%</span>
                             </div>
                             <div style="background:#e0e0e0; border-radius:10px; height:12px; overflow:hidden; width:100%;">
@@ -482,14 +521,35 @@ async function initEditor(user) {
                 const status = document.getElementById('uploadStatusText');
                 if (status) status.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Añadiendo a la escaleta...';
 
-                await window.addAudioWithTimeCalculation(file.name, result.url, chosenCategory);
+                await window.addAudioWithTimeCalculation(finalTitle, result.url, chosenCategory);
 
-                // 5. Confirmación final una vez visible en la escaleta
+                // 5. Guardar en Firestore sounds si se marcó como Sintonía Precargada
+                if (assignPreloaded || chosenCategory === 'sintonias_precargadas') {
+                    try {
+                        await dbService.addSound({
+                            title: finalTitle,
+                            url: result.url,
+                            category: 'sintonias_precargadas',
+                            icon: 'fa-star',
+                            order: (sharedLibrary.sintonias_precargadas || []).length
+                        });
+                        if (!sharedLibrary.sintonias_precargadas) sharedLibrary.sintonias_precargadas = [];
+                        sharedLibrary.sintonias_precargadas.unshift({
+                            title: finalTitle,
+                            url: result.url,
+                            icon: 'fa-star'
+                        });
+                    } catch (dbErr) {
+                        console.warn("No se pudo registrar en Firestore sounds:", dbErr);
+                    }
+                }
+
+                // 6. Confirmación final una vez visible en la escaleta
                 Swal.fire({
                     icon: 'success',
                     title: '¡Audio añadido!',
-                    text: `"${file.name}" se ha añadido correctamente a la escaleta.`,
-                    timer: 1800,
+                    html: `<b>"${finalTitle}"</b> se ha añadido a la escaleta${assignPreloaded ? ' y guardado en <b>Sintonías Precargadas</b>' : ''}.`,
+                    timer: 2200,
                     showConfirmButton: false
                 });
 
@@ -637,20 +697,29 @@ function openLibraryModal(category, onSelect) {
     const list = document.getElementById('libraryList');
     list.innerHTML = '';
     
+    const isPreloaded = (category === 'sintonias_precargadas' || category === 'sintonias-precargadas');
+
     let titleMap = {
         'sintonias': 'Sintonías',
-        'sintonias-precargadas': 'Sintonías Precargadas (Sistema)',
+        'sintonias_precargadas': 'Sintonías Precargadas (Librería Compartida)',
+        'sintonias-precargadas': 'Sintonías Precargadas (Librería Compartida)',
         'efectos': 'Efectos de Sonido',
         'musica': 'Música de Fondo'
     };
     
     document.getElementById('modalTitle').innerText = titleMap[category] || 'Seleccionar Audio';
 
-    let actualCategory = category;
+    let actualCategory = isPreloaded ? 'sintonia' : category;
     let items = [];
-    if (category === 'sintonias-precargadas') {
-        actualCategory = 'sintonia';
-        items = defaultLibrary.sintonias || [];
+    if (isPreloaded) {
+        const preloaded = (sharedLibrary && sharedLibrary.sintonias_precargadas) ? sharedLibrary.sintonias_precargadas : [];
+        const baseDefaults = defaultLibrary.sintonias || [];
+        items = [...preloaded];
+        baseDefaults.forEach(def => {
+            if (!items.some(it => it.title === def.title)) {
+                items.push(def);
+            }
+        });
     } else {
         const library = sharedLibrary || defaultLibrary;
         items = library[category] || [];
@@ -694,7 +763,7 @@ function openLibraryModal(category, onSelect) {
             btn.onclick = () => {
                 if (previewAudio) previewAudio.pause();
                 const soundUrl = (item.url || '').replace('res.cloudinary.com', 'res-1.cloudinary.com');
-                onSelect({ category: (category === 'sintonias-precargadas' ? 'sintonia' : category), title: item.title, url: soundUrl });
+                onSelect({ category: actualCategory, title: item.title, url: soundUrl });
                 modal.style.display = 'none';
             };
             
