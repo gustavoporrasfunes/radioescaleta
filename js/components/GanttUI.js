@@ -1,11 +1,12 @@
 // js/components/GanttUI.js
-import { timeToSeconds, formatTime } from "../utils/timeUtils.js";
+import { timeToSeconds, secondsToTime, formatTime } from "../utils/timeUtils.js";
 
 export class GanttUI {
-    constructor(containerId) {
+    constructor(containerId, onUpdateCallback = null) {
         this.container = document.getElementById(containerId);
-        // Escala: 1 segundo = 3 píxeles
-        this.pixelsPerSecond = 20;
+        // Escala: 1 segundo = 18 píxeles (cómodo para arrastrar y visualizar)
+        this.pixelsPerSecond = 18;
+        this.onUpdateCallback = onUpdateCallback;
     }
 
     calculateLanes(blocks) {
@@ -16,14 +17,14 @@ export class GanttUI {
             for (let i = 0; i < lanes.length; i++) {
                 if (lanes[i] <= b.startSec) {
                     b.lane = i;
-                    lanes[i] = b.startSec + b.durSec;
+                    lanes[i] = b.startSec + Math.max(1, b.durSec);
                     placed = true;
                     break;
                 }
             }
             if (!placed) {
                 b.lane = lanes.length;
-                lanes.push(b.startSec + b.durSec);
+                lanes.push(b.startSec + Math.max(1, b.durSec));
             }
         });
         return lanes.length;
@@ -32,7 +33,13 @@ export class GanttUI {
     render(program) {
         this.container.innerHTML = '';
         if (!program || program.blocks.length === 0) {
-            this.container.innerHTML = '<p style="text-align:center; padding: 20px;">No hay bloques en la escaleta para dibujar el Gantt.</p>';
+            this.container.innerHTML = `
+                <div style="text-align:center; padding: 40px; color:#64748b;">
+                    <i class="fa-solid fa-chart-gantt" style="font-size: 3em; margin-bottom: 12px; color:#cbd5e1;"></i>
+                    <p style="font-size: 15px; font-weight: 500;">No hay bloques en la escaleta para dibujar el Diagrama de Gantt.</p>
+                    <small>Añade bloques de texto o audio para visualizar la línea de tiempo.</small>
+                </div>
+            `;
             return;
         }
 
@@ -41,28 +48,58 @@ export class GanttUI {
         const bgTrack = [];
         let maxTime = 0;
 
+        // Calcular primero la duración máxima real de los bloques no-fullProgram
         program.blocks.forEach(b => {
-            const startSec = timeToSeconds(b.startTime);
-            let endSec = timeToSeconds(b.endTime || b.duration); // b.duration para compatibilidad
-            
-            // Si el fin es menor que el inicio, asumimos que dura 0 (es solo un marcador)
-            if (endSec < startSec) endSec = startSec;
-            
-            const durSec = endSec - startSec;
+            if (!b.isFullProgram) {
+                const endSec = timeToSeconds(b.endTime || b.duration || b.startTime);
+                if (endSec > maxTime) maxTime = endSec;
+            }
+        });
+        if (maxTime <= 0) maxTime = 60; // Mínimo 1 minuto si no hay tiempos fijados
+
+        program.blocks.forEach(b => {
+            let startSec = timeToSeconds(b.startTime);
+            let endSec = timeToSeconds(b.endTime || b.duration || b.startTime);
+
+            if (b.isFullProgram) {
+                startSec = 0;
+                endSec = maxTime;
+            } else if (endSec < startSec) {
+                endSec = startSec + 5; // Duración mínima visual
+            }
+
+            const durSec = Math.max(2, endSec - startSec);
             if (endSec > maxTime) maxTime = endSec;
 
-            if (b.isBackground || (b.type === 'audio' && b.category === 'musica')) {
-                bgTrack.push({ ...b, startSec, durSec });
+            const blockData = {
+                ...b,
+                rawBlock: b,
+                startSec,
+                endSec,
+                durSec
+            };
+
+            if (b.isFullProgram || b.isBackground || (b.type === 'audio' && b.category === 'musica')) {
+                bgTrack.push(blockData);
             } else {
-                mainTrack.push({ ...b, startSec, durSec });
+                mainTrack.push(blockData);
             }
         });
 
-        // Dar un poco de margen al final (ej. 30 segundos)
-        maxTime += 30;
-        const totalWidth = maxTime * this.pixelsPerSecond;
+        // Dar margen de 30 segundos al final
+        const totalDuration = maxTime + 30;
+        const totalWidth = Math.max(800, totalDuration * this.pixelsPerSecond);
 
-        // Contenedor principal scrollable
+        // Barra de ayuda e instrucciones
+        const headerInfo = document.createElement('div');
+        headerInfo.style.cssText = 'padding: 8px 16px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; font-size: 12px; color: #475569; display: flex; justify-content: space-between; align-items: center;';
+        headerInfo.innerHTML = `
+            <span><i class="fa-solid fa-arrows-left-right" style="color:#0284c7; margin-right:4px;"></i> <b>Arrastra horizontalmente</b> las barras para situar cada bloque exactamente cuando debe sonar.</span>
+            <span><i class="fa-solid fa-hand-pointer" style="color:#0284c7; margin-right:4px;"></i> Haz doble clic en una barra para editar sus tiempos con precisión.</span>
+        `;
+        this.container.appendChild(headerInfo);
+
+        // Contenedor scrollable
         const scrollWrapper = document.createElement('div');
         scrollWrapper.className = 'gantt-scroll-wrapper';
 
@@ -70,12 +107,12 @@ export class GanttUI {
         ganttCanvas.className = 'gantt-canvas';
         ganttCanvas.style.width = `${totalWidth}px`;
 
-        // Dibujar regla de tiempo (cada 10 segundos)
+        // Regla de tiempo (marcas cada 5 y 10 segundos)
         const timeline = document.createElement('div');
         timeline.className = 'gantt-timeline';
-        for (let s = 0; s <= maxTime; s += 5) {
+        for (let s = 0; s <= totalDuration; s += 5) {
             const mark = document.createElement('div');
-            mark.className = 'gantt-mark';
+            mark.className = 'gantt-mark' + (s % 30 === 0 ? ' major' : '');
             mark.style.left = `${s * this.pixelsPerSecond}px`;
             
             const m = Math.floor(s / 60);
@@ -85,46 +122,197 @@ export class GanttUI {
         }
         ganttCanvas.appendChild(timeline);
 
-        // Track 1 (Principal)
+        // Pista 1: Voz y Efectos (Principal)
         const mainLanes = this.calculateLanes(mainTrack);
         const track1 = document.createElement('div');
         track1.className = 'gantt-track main-track';
-        track1.innerHTML = '<div class="track-label">Voz y Efectos</div>';
-        if (mainLanes > 0) track1.style.height = `${30 + (mainLanes * 45) + 10}px`;
-        mainTrack.forEach(b => this.createBar(b, track1));
+        track1.innerHTML = '<div class="track-label"><i class="fa-solid fa-microphone"></i> Voz y Efectos</div>';
+        const h1 = Math.max(80, 35 + (mainLanes * 50) + 15);
+        track1.style.height = `${h1}px`;
+        mainTrack.forEach(b => this.createBar(b, track1, program));
         ganttCanvas.appendChild(track1);
 
-        // Track 2 (Fondo)
+        // Pista 2: Música y Fondos (Debajo de todo)
         const bgLanes = this.calculateLanes(bgTrack);
         const track2 = document.createElement('div');
         track2.className = 'gantt-track bg-track';
-        track2.innerHTML = '<div class="track-label">Música de fondo</div>';
-        if (bgLanes > 0) track2.style.height = `${30 + (bgLanes * 45) + 10}px`;
-        bgTrack.forEach(b => this.createBar(b, track2));
+        track2.innerHTML = '<div class="track-label"><i class="fa-solid fa-music"></i> Música de Fondo</div>';
+        const h2 = Math.max(80, 35 + (bgLanes * 50) + 15);
+        track2.style.height = `${h2}px`;
+        bgTrack.forEach(b => this.createBar(b, track2, program));
         ganttCanvas.appendChild(track2);
 
         scrollWrapper.appendChild(ganttCanvas);
         this.container.appendChild(scrollWrapper);
     }
 
-    createBar(block, trackEl) {
-        if (block.durSec <= 0) return; // No dibujar si no tiene duración
+    createBar(bData, trackEl, program) {
+        if (bData.durSec <= 0) return;
 
+        const block = bData.rawBlock;
         const bar = document.createElement('div');
         bar.className = `gantt-bar ${block.type}`;
         if (block.type === 'audio') bar.classList.add(`audio-${block.category}`);
-        
-        bar.style.left = `${block.startSec * this.pixelsPerSecond}px`;
-        bar.style.width = `${block.durSec * this.pixelsPerSecond}px`;
-        if (block.lane !== undefined) {
-            bar.style.top = `${30 + (block.lane * 45)}px`;
+        if (block.isFullProgram) bar.classList.add('full-program-bar');
+
+        bar.style.left = `${bData.startSec * this.pixelsPerSecond}px`;
+        bar.style.width = `${Math.max(40, bData.durSec * this.pixelsPerSecond)}px`;
+        if (bData.lane !== undefined) {
+            bar.style.top = `${35 + (bData.lane * 50)}px`;
         }
-        
-        const text = block.type === 'text' ? block.content : block.title;
-        bar.innerText = text;
-        const eTime = block.endTime || block.duration;
-        bar.title = `[${block.startTime} a ${eTime}] ${text}`;
+
+        // Título del bloque (locutor si es texto)
+        let displayTitle = '';
+        if (block.type === 'text') {
+            const speakerTag = block.speaker ? `[${block.speaker}] ` : '';
+            displayTitle = speakerTag + (block.content || 'Guión de texto');
+        } else {
+            displayTitle = (block.isFullProgram ? '🎵 [TODO EL PROGRAMA] ' : '') + (block.title || 'Audio');
+        }
+
+        bar.innerHTML = `
+            <div class="gantt-bar-content">
+                <span class="bar-title">${displayTitle}</span>
+                <span class="bar-badge">${block.startTime} - ${block.endTime}</span>
+            </div>
+        `;
+        bar.title = `[${block.startTime} a ${block.endTime}] ${displayTitle} (Haz doble clic para editar o arrastra para mover)`;
+
+        // === ARRASTRAR PARA SITUAR EN EL TIEMPO ===
+        if (!block.isFullProgram) {
+            bar.style.cursor = 'grab';
+
+            let isDragging = false;
+            let startClientX = 0;
+            let initialStartSec = bData.startSec;
+            let currentDeltaSec = 0;
+            let dragTooltip = null;
+
+            const onMouseDown = (e) => {
+                if (e.button !== 0) return; // Solo clic izquierdo
+                e.preventDefault();
+                isDragging = true;
+                startClientX = e.clientX;
+                initialStartSec = timeToSeconds(block.startTime);
+                currentDeltaSec = 0;
+                bar.style.cursor = 'grabbing';
+                bar.classList.add('is-dragging');
+
+                // Tooltip flotante con horas
+                dragTooltip = document.createElement('div');
+                dragTooltip.className = 'gantt-drag-tooltip';
+                dragTooltip.innerText = `${block.startTime} → ${block.endTime}`;
+                bar.appendChild(dragTooltip);
+
+                document.addEventListener('mousemove', onMouseMove);
+                document.addEventListener('mouseup', onMouseUp);
+            };
+
+            const onMouseMove = (e) => {
+                if (!isDragging) return;
+                const dx = e.clientX - startClientX;
+                currentDeltaSec = Math.round(dx / this.pixelsPerSecond);
+                const newStartSec = Math.max(0, initialStartSec + currentDeltaSec);
+                const newEndSec = newStartSec + bData.durSec;
+
+                bar.style.left = `${newStartSec * this.pixelsPerSecond}px`;
+                if (dragTooltip) {
+                    dragTooltip.innerText = `${secondsToTime(newStartSec)} → ${secondsToTime(newEndSec)}`;
+                }
+            };
+
+            const onMouseUp = () => {
+                if (!isDragging) return;
+                isDragging = false;
+                bar.style.cursor = 'grab';
+                bar.classList.remove('is-dragging');
+                if (dragTooltip) {
+                    dragTooltip.remove();
+                    dragTooltip = null;
+                }
+
+                document.removeEventListener('mousemove', onMouseMove);
+                document.removeEventListener('mouseup', onMouseUp);
+
+                if (currentDeltaSec !== 0) {
+                    const finalStartSec = Math.max(0, initialStartSec + currentDeltaSec);
+                    const finalEndSec = finalStartSec + bData.durSec;
+                    block.startTime = secondsToTime(finalStartSec);
+                    block.endTime = secondsToTime(finalEndSec);
+
+                    if (this.onUpdateCallback) {
+                        this.onUpdateCallback();
+                    }
+                    this.render(program);
+                }
+            };
+
+            bar.addEventListener('mousedown', onMouseDown);
+        } else {
+            bar.style.cursor = 'pointer';
+        }
+
+        // Doble clic para editar tiempos
+        bar.addEventListener('dblclick', () => {
+            this.openEditTimesModal(block, program);
+        });
 
         trackEl.appendChild(bar);
+    }
+
+    openEditTimesModal(block, program) {
+        const isAudio = block.type === 'audio';
+        Swal.fire({
+            title: `<div style="font-size:18px;color:#0284c7;"><i class="fa-solid fa-clock"></i> Ajustar Tiempos del Bloque</div>`,
+            html: `
+                <div style="text-align:left;display:flex;flex-direction:column;gap:12px;padding:5px 0;">
+                    <div style="font-weight:600;font-size:14px;color:#1e293b;">
+                        ${block.type === 'text' ? (block.speaker ? `Locutor: <b>${block.speaker}</b>` : 'Bloque de texto') : block.title}
+                    </div>
+                    <div style="display:flex;gap:10px;">
+                        <div style="flex:1;">
+                            <label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:4px;">Inicio (MM:SS):</label>
+                            <input type="text" id="ganttStart" value="${block.startTime}" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:14px;text-align:center;">
+                        </div>
+                        <div style="flex:1;">
+                            <label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:4px;">Fin (MM:SS):</label>
+                            <input type="text" id="ganttEnd" value="${block.endTime}" ${block.isFullProgram ? 'disabled' : ''} style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:14px;text-align:center;">
+                        </div>
+                    </div>
+                    ${isAudio ? `
+                        <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#0f766e;cursor:pointer;margin-top:5px;font-weight:600;">
+                            <input type="checkbox" id="ganttFullProg" ${block.isFullProgram ? 'checked' : ''} style="width:16px;height:16px;">
+                            <span>Marcar como música para "Todo el programa"</span>
+                        </label>
+                    ` : ''}
+                </div>
+            `,
+            showCancelButton: true,
+            confirmButtonText: 'Guardar Tiempos',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#0284c7'
+        }).then(res => {
+            if (res.isConfirmed) {
+                const sVal = formatTime(document.getElementById('ganttStart').value) || block.startTime;
+                const eVal = formatTime(document.getElementById('ganttEnd').value) || block.endTime;
+                const fullProgCheck = document.getElementById('ganttFullProg');
+                const isFull = fullProgCheck ? fullProgCheck.checked : false;
+
+                block.startTime = sVal;
+                block.endTime = eVal;
+                if (isAudio) {
+                    block.isFullProgram = isFull;
+                    if (isFull) {
+                        block.isBackground = true;
+                        block.startTime = "00:00";
+                    }
+                }
+
+                if (this.onUpdateCallback) {
+                    this.onUpdateCallback();
+                }
+                this.render(program);
+            }
+        });
     }
 }

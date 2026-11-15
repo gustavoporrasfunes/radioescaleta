@@ -9,20 +9,22 @@ export class Block {
 }
 
 export class TextBlock extends Block {
-    constructor(content = "", id = null) {
+    constructor(content = "", id = null, speaker = "") {
         super('text', id);
         this.content = content;
+        this.speaker = speaker || "";
     }
 }
 
 export class AudioBlock extends Block {
-    constructor(category, title = "", audioUrl = "", keyboardKey = "", id = null, maxDuration = 0) {
+    constructor(category, title = "", audioUrl = "", keyboardKey = "", id = null, maxDuration = 0, isFullProgram = false) {
         super('audio', id);
         this.category = category; // 'sintonia', 'efecto', 'musica'
         this.title = title;
         this.audioUrl = audioUrl ? audioUrl.replace('res.cloudinary.com', 'res-1.cloudinary.com') : "";
         this.maxDuration = maxDuration;
         this.isBackground = false;
+        this.isFullProgram = !!isFullProgram;
         this.keyboardKey = keyboardKey;
     }
 }

@@ -5,7 +5,7 @@ export class EscaletaUI {
     constructor(containerId, program, onUpdateCallback) {
         this.container = document.getElementById(containerId);
         this.program = program;
-        this.onUpdateCallback = onUpdateCallback; // Callback para actualizar botonera
+        this.onUpdateCallback = onUpdateCallback;
         this.initSortable();
     }
 
@@ -17,7 +17,8 @@ export class EscaletaUI {
                 scrollSensitivity: 50,
                 scrollSpeed: 15,
                 bubbleScroll: true,
-                onEnd: (evt) => {
+                handle: '.block-time-container, .speaker-row, .block-drag-handle',
+                onEnd: () => {
                     this.updateOrderFromDOM();
                 }
             });
@@ -30,22 +31,76 @@ export class EscaletaUI {
         }
     }
 
+    syncFullProgramDurations() {
+        let maxSec = 0;
+        this.program.blocks.forEach(b => {
+            if (!b.isFullProgram) {
+                const eSec = timeToSeconds(b.endTime || b.duration || b.startTime);
+                if (eSec > maxSec) maxSec = eSec;
+            }
+        });
+        if (maxSec <= 0) maxSec = 60; // Mínimo 1 minuto
+        const maxTimeStr = secondsToTime(maxSec);
+        
+        this.program.blocks.forEach(b => {
+            if (b.isFullProgram) {
+                b.startTime = "00:00";
+                b.endTime = maxTimeStr;
+            }
+        });
+    }
+
     addBlock(type, data = {}) {
         let block;
+        
+        // Calcular tiempo de inicio secuencial por defecto según el final del bloque anterior
+        let defaultStart = "00:00";
+        if (this.program.blocks.length > 0) {
+            const regularBlocks = this.program.blocks.filter(b => !b.isFullProgram);
+            if (regularBlocks.length > 0) {
+                const last = regularBlocks[regularBlocks.length - 1];
+                defaultStart = last.endTime || last.startTime || "00:00";
+            }
+        }
+        const startTime = data.startTime || defaultStart;
+
         if (type === 'text') {
-            block = new TextBlock(data.content || "Nuevo bloque de texto...");
+            const initialText = data.content || "Nuevo guión de radio...";
+            block = new TextBlock(initialText, null, data.speaker || "");
+            block.startTime = startTime;
+
+            // Calcular duración estimada basada en 130 palabras por minuto
+            const words = initialText.trim().split(/\s+/).filter(w => w.length > 0).length;
+            const estSec = Math.max(3, Math.round((words / 130) * 60));
+            block.endTime = data.endTime || secondsToTime(timeToSeconds(startTime) + estSec);
         } else if (type === 'audio') {
-            block = new AudioBlock(data.category || 'sintonia', data.title || "Audio", data.url || data.audioUrl || "", '', null, data.maxDuration || 0);
+            const isFull = !!data.isFullProgram;
+            block = new AudioBlock(
+                data.category || 'sintonia', 
+                data.title || "Audio", 
+                data.url || data.audioUrl || "", 
+                '', 
+                null, 
+                data.maxDuration || 0,
+                isFull
+            );
+            if (isFull) {
+                block.isFullProgram = true;
+                block.isBackground = true;
+                block.startTime = "00:00";
+            } else {
+                block.startTime = startTime;
+                const dur = data.maxDuration ? Math.round(data.maxDuration) : 10;
+                block.endTime = data.endTime || secondsToTime(timeToSeconds(startTime) + dur);
+            }
         }
         
         if (block) {
-            if (data.startTime) block.startTime = data.startTime;
-            if (data.endTime) block.endTime = data.endTime;
             this.program.addBlock(block);
+            this.syncFullProgramDurations();
             this.render();
             this.notifyUpdate();
 
-            // Auto-scroll al nuevo bloque para que sea visible de inmediato
             requestAnimationFrame(() => {
                 const escaletaContainer = document.getElementById('escaletaContainer');
                 if (escaletaContainer) {
@@ -60,6 +115,7 @@ export class EscaletaUI {
 
     removeBlock(id) {
         this.program.removeBlock(id);
+        this.syncFullProgramDurations();
         this.render();
         this.notifyUpdate();
     }
@@ -72,7 +128,6 @@ export class EscaletaUI {
                 const startSec = timeToSeconds(block.startTime);
                 const endSec = timeToSeconds(block.endTime || block.duration || block.startTime);
                 
-                // Si currentSeconds está dentro del rango
                 if (currentSeconds >= startSec && currentSeconds < endSec) {
                     el.classList.add('live-active');
                 } else {
@@ -85,6 +140,7 @@ export class EscaletaUI {
     updateOrderFromDOM() {
         const orderIds = Array.from(this.container.children).map(el => el.dataset.id);
         this.program.updateBlockOrder(orderIds);
+        this.syncFullProgramDurations();
         this.notifyUpdate();
     }
 
@@ -96,14 +152,20 @@ export class EscaletaUI {
 
     render() {
         this.container.innerHTML = '';
+        this.syncFullProgramDurations();
+
         this.program.blocks.forEach(block => {
             const el = document.createElement('div');
             el.className = `escaleta-block ${block.type}`;
             if (block.type === 'audio') {
                 el.classList.add(`audio-${block.category}`);
             }
+            if (block.isFullProgram) {
+                el.classList.add('full-program-block');
+            }
             el.dataset.id = block.id;
 
+            // === TIEMPOS (INICIO / FIN / DURACIÓN) ===
             const timeContainer = document.createElement('div');
             timeContainer.className = 'block-time-container';
             
@@ -119,15 +181,23 @@ export class EscaletaUI {
             endInput.className = 'time-input';
             endInput.placeholder = '00:00';
             endInput.title = 'Fin (MM:SS)';
-            endInput.value = block.endTime || block.duration || "00:00";
+            endInput.value = block.endTime || "00:00";
+
+            if (block.isFullProgram) {
+                startInput.disabled = true;
+                endInput.disabled = true;
+                startInput.title = 'Fijo al inicio';
+                endInput.title = 'Ajustado a la duración total';
+            }
 
             const durationSpan = document.createElement('span');
-            durationSpan.style.fontSize = '11px';
-            durationSpan.style.color = '#777';
-            durationSpan.style.alignSelf = 'center';
-            durationSpan.style.width = '35px';
+            durationSpan.style.cssText = 'font-size: 11px; color: #64748b; align-self: center; min-width: 45px; font-weight: 500;';
 
             const updateDurationDisplay = () => {
+                if (block.isFullProgram) {
+                    durationSpan.innerText = '(Todo)';
+                    return;
+                }
                 const s = timeToSeconds(block.startTime);
                 const e = timeToSeconds(block.endTime);
                 let d = e - s;
@@ -146,6 +216,7 @@ export class EscaletaUI {
                     startInput.value = block.startTime; 
                     startInput.style.borderColor = 'red';
                 }
+                this.syncFullProgramDurations();
                 updateDurationDisplay();
                 this.notifyUpdate();
             };
@@ -164,14 +235,19 @@ export class EscaletaUI {
                     const requestedDuration = newEndSec - startSec;
 
                     if (block.type === 'audio' && block.maxDuration && requestedDuration > block.maxDuration) {
-                        Swal.fire({toast: true, position: "bottom", icon: "warning", title: `Audio acortado: el archivo físico solo dura ${secondsToTime(block.maxDuration)}.`, showConfirmButton: false, timer: 4000});
+                        Swal.fire({
+                            toast: true,
+                            position: "bottom",
+                            icon: "warning",
+                            title: `Audio acortado: el archivo físico solo dura ${secondsToTime(block.maxDuration)}.`,
+                            showConfirmButton: false,
+                            timer: 3500
+                        });
                         block.endTime = secondsToTime(startSec + block.maxDuration);
                         endInput.value = block.endTime;
-                        endInput.style.borderColor = 'orange';
                     } else if (newEndSec < startSec) {
-                        block.endTime = block.startTime; // No puede ser negativo
+                        block.endTime = block.startTime;
                         endInput.value = block.endTime;
-                        endInput.style.borderColor = 'orange';
                     } else {
                         endInput.value = valid;
                         block.endTime = valid;
@@ -181,6 +257,7 @@ export class EscaletaUI {
                     endInput.value = block.endTime; 
                     endInput.style.borderColor = 'red';
                 }
+                this.syncFullProgramDurations();
                 updateDurationDisplay();
                 this.notifyUpdate();
             };
@@ -195,89 +272,143 @@ export class EscaletaUI {
             timeContainer.appendChild(endInput);
             timeContainer.appendChild(durationSpan);
 
+            // === CONTENEDOR CENTRAL DEL BLOQUE ===
             const contentContainer = document.createElement('div');
             contentContainer.style.flex = '1';
             contentContainer.style.display = 'flex';
             contentContainer.style.flexDirection = 'column';
-            contentContainer.style.gap = '5px';
+            contentContainer.style.gap = '6px';
             contentContainer.style.minWidth = '0';
             contentContainer.style.overflow = 'hidden';
 
-            let prefix = "";
-            if (block.type === 'audio') {
-                const audioIndex = this.program.blocks.filter(b => b.type === 'audio').findIndex(b => b.id === block.id);
-                if (audioIndex >= 0 && audioIndex < 9) {
-                    prefix = `[${audioIndex + 1}] `;
-                }
-            }
-
             if (block.type === 'text') {
-                // === PREVIEW Y POPUP PARA TEXTO ===
+                // 1) CAMPO LOCUTOR / RESPONSABLE DE LECTURA
+                const speakerRow = document.createElement('div');
+                speakerRow.className = 'speaker-row';
+                speakerRow.style.cssText = 'display:flex; align-items:center; gap:8px;';
+                
+                const speakerBadge = document.createElement('span');
+                speakerBadge.style.cssText = 'font-size:11px; font-weight:700; color:#0284c7; background:#e0f2fe; padding:3px 8px; border-radius:12px; display:inline-flex; align-items:center; gap:4px; flex-shrink:0;';
+                speakerBadge.innerHTML = '<i class="fa-solid fa-microphone-lines"></i> Locutor/a:';
+                
+                const speakerInput = document.createElement('input');
+                speakerInput.type = 'text';
+                speakerInput.className = 'speaker-input';
+                speakerInput.placeholder = 'Alumno/a responsable (ej. Laura)...';
+                speakerInput.value = block.speaker || '';
+                speakerInput.title = 'Escribe aquí el alumno/a que leerá este bloque';
+                speakerInput.style.cssText = 'padding:4px 8px; font-size:12px; border:1px solid #cbd5e1; border-radius:6px; width:220px; font-weight:500; background:#ffffff; outline:none; transition:border 0.2s;';
+                speakerInput.onfocus = () => speakerInput.style.borderColor = '#0284c7';
+                speakerInput.onblur = () => speakerInput.style.borderColor = '#cbd5e1';
+
+                speakerInput.addEventListener('input', (e) => {
+                    block.speaker = e.target.value;
+                    this.notifyUpdate();
+                });
+
+                speakerRow.appendChild(speakerBadge);
+                speakerRow.appendChild(speakerInput);
+                contentContainer.appendChild(speakerRow);
+
+                // 2) PREVIEW Y POPUP DE REDACCIÓN DEL GUIÓN
                 const textPreview = document.createElement('div');
                 textPreview.className = 'block-content text-preview';
-                textPreview.style.cssText = 'padding: 8px; background: rgba(255,255,255,0.7); border: 1px solid rgba(0,0,0,0.2); border-radius: 5px; cursor: pointer; min-height: 38px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; width: 100%; box-sizing: border-box; flex: 1; font-size: 13px; color: #333; transition: background 0.2s;';
+                textPreview.style.cssText = 'padding:8px 12px; background:rgba(255,255,255,0.85); border:1px solid rgba(0,0,0,0.15); border-radius:6px; cursor:pointer; min-height:36px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; width:100%; box-sizing:border-box; flex:1; font-size:13px; color:#1e293b; transition:all 0.2s;';
                 
                 const helper = document.createElement('small');
-                helper.style.color = '#888';
-                helper.style.fontSize = '11px';
-                helper.style.marginTop = '4px';
+                helper.style.cssText = 'color:#64748b; font-size:11px; display:flex; align-items:center; gap:6px;';
                 
                 const updateView = () => {
                     const txt = block.content || '✏️ Haz clic aquí para escribir el guión...';
                     textPreview.innerText = txt;
                     
                     const words = (block.content || "").trim().split(/\s+/).filter(w => w.length > 0).length;
-                    const sec = Math.round((words / 130) * 60);
-                    helper.innerText = `Lectura est.: ${secondsToTime(sec)} (${words} palabras)`;
+                    const sec = Math.max(2, Math.round((words / 130) * 60));
+                    helper.innerHTML = `<i class="fa-solid fa-clock-rotate-left"></i> Lectura est.: <b style="color:#0284c7;">${secondsToTime(sec)}</b> (${words} palabras a 130 pal/min)`;
                 };
-                
                 updateView();
 
                 textPreview.addEventListener('mouseover', () => {
-                    if (!document.body.classList.contains('live-mode') && !document.title.includes('👁️')) {
-                        textPreview.style.background = '#fff';
-                        textPreview.style.borderColor = '#00acc1';
-                    }
+                    textPreview.style.background = '#ffffff';
+                    textPreview.style.borderColor = '#0284c7';
+                    textPreview.style.boxShadow = '0 2px 4px rgba(2,132,199,0.15)';
                 });
                 textPreview.addEventListener('mouseout', () => {
-                    textPreview.style.background = 'rgba(255,255,255,0.7)';
-                    textPreview.style.borderColor = 'rgba(0,0,0,0.2)';
+                    textPreview.style.background = 'rgba(255,255,255,0.85)';
+                    textPreview.style.borderColor = 'rgba(0,0,0,0.15)';
+                    textPreview.style.boxShadow = 'none';
                 });
 
+                // Modal de redacción completa con cálculo exacto
                 textPreview.addEventListener('click', () => {
                     if (document.body.classList.contains('live-mode') || document.title.includes('👁️')) return;
                     
+                    const wordsInit = (block.content || "").trim().split(/\s+/).filter(w => w.length > 0).length;
+                    const secInit = Math.max(2, Math.round((wordsInit / 130) * 60));
+
                     Swal.fire({
-                        title: 'Redactar Guión',
-                        input: 'textarea',
-                        inputValue: block.content || '',
-                        inputPlaceholder: 'Escribe aquí lo que se va a leer en antena...',
-                        inputAttributes: {
-                            rows: 15,
-                            style: 'font-size: 1.1em; line-height: 1.6; padding: 15px; resize: vertical;'
-                        },
-                        width: '800px',
+                        title: '<div style="display:flex;align-items:center;gap:10px;justify-content:center;color:#0284c7;"><i class="fa-solid fa-file-lines"></i> Redactar Guión de Radio</div>',
+                        html: `
+                            <div style="text-align:left;display:flex;flex-direction:column;gap:12px;margin-top:10px;">
+                                <div>
+                                    <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:4px;">
+                                        <i class="fa-solid fa-microphone-lines" style="color:#0284c7;"></i> Locutor/a responsable (alumno/a):
+                                    </label>
+                                    <input type="text" id="swalSpeaker" value="${(block.speaker || '').replace(/"/g, '&quot;')}" placeholder="Nombre del alumno/a (ej. Laura García)" style="width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid #cbd5e1;border-radius:6px;font-size:14px;">
+                                </div>
+                                <div>
+                                    <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:4px;">
+                                        <i class="fa-solid fa-align-left" style="color:#0284c7;"></i> Texto a leer en antena:
+                                    </label>
+                                    <textarea id="swalContent" rows="12" placeholder="Escribe aquí el guión que se leerá en antena..." style="width:100%;box-sizing:border-box;padding:12px;border:1px solid #cbd5e1;border-radius:6px;font-size:14px;line-height:1.6;font-family:inherit;resize:vertical;">${(block.content || '').replace(/</g, '&lt;')}</textarea>
+                                </div>
+                                <div style="display:flex;justify-content:space-between;align-items:center;background:#f8fafc;padding:10px 14px;border-radius:8px;border:1px solid #e2e8f0;">
+                                    <div id="swalCounter" style="font-size:13px;color:#475569;">
+                                        <b>${wordsInit} palabras</b> — Tiempo estimado: <b style="color:#0284c7;">${secondsToTime(secInit)}</b> (a 130 palabras/min)
+                                    </div>
+                                </div>
+                                <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#334155;cursor:pointer;margin-top:2px;">
+                                    <input type="checkbox" id="swalSyncDuration" checked style="width:16px;height:16px;cursor:pointer;">
+                                    <span><b>Ajustar automáticamente</b> el tiempo fin del bloque según la lectura estimada</span>
+                                </label>
+                            </div>
+                        `,
+                        width: '780px',
                         showCancelButton: true,
-                        confirmButtonText: '<i class="fa-solid fa-check"></i> Guardar',
+                        confirmButtonText: '<i class="fa-solid fa-check"></i> Guardar Guión',
                         cancelButtonText: 'Cancelar',
-                        confirmButtonColor: '#00acc1'
+                        confirmButtonColor: '#0284c7',
+                        didOpen: () => {
+                            const textarea = document.getElementById('swalContent');
+                            const counter = document.getElementById('swalCounter');
+                            const updateCount = () => {
+                                const w = textarea.value.trim().split(/\s+/).filter(x => x.length > 0).length;
+                                const s = Math.max(2, Math.round((w / 130) * 60));
+                                counter.innerHTML = `<b>${w} palabras</b> — Tiempo estimado: <b style="color:#0284c7;">${secondsToTime(s)}</b> (a 130 palabras/min)`;
+                            };
+                            textarea.addEventListener('input', updateCount);
+                        }
                     }).then((result) => {
                         if (result.isConfirmed) {
-                            block.content = result.value;
+                            const newSpeaker = document.getElementById('swalSpeaker').value.trim();
+                            const newContent = document.getElementById('swalContent').value;
+                            const syncDur = document.getElementById('swalSyncDuration').checked;
 
-                            // Solo si el bloque aún no tiene tiempo fin configurado a mano (era 00:00 o igual al inicio),
-                            // calculamos automáticamente el fin según la estimación de lectura.
-                            const words = (block.content || "").trim().split(/\s+/).filter(w => w.length > 0).length;
-                            const sec = Math.round((words / 130) * 60);
-                            const hasNoCustomDuration = !block.endTime || block.endTime === "00:00" || block.endTime === block.startTime;
-                            if (hasNoCustomDuration && sec > 0) {
+                            block.speaker = newSpeaker;
+                            block.content = newContent;
+
+                            const words = newContent.trim().split(/\s+/).filter(w => w.length > 0).length;
+                            const sec = Math.max(2, Math.round((words / 130) * 60));
+
+                            if (syncDur) {
                                 const newEnd = secondsToTime(timeToSeconds(block.startTime) + sec);
                                 block.endTime = newEnd;
                                 endInput.value = newEnd;
                                 updateDurationDisplay();
                             }
 
-                            updateView();
+                            this.syncFullProgramDurations();
+                            this.render(); // Re-renderizar completo para actualizar input de locutor y tiempos
                             this.notifyUpdate();
                         }
                     });
@@ -287,11 +418,18 @@ export class EscaletaUI {
                 contentContainer.appendChild(helper);
 
             } else {
-                // === COMPORTAMIENTO ORIGINAL PARA AUDIO ===
+                // === BLOQUE DE AUDIO ===
+                let prefix = "";
+                const audioIndex = this.program.blocks.filter(b => b.type === 'audio').findIndex(b => b.id === block.id);
+                if (audioIndex >= 0 && audioIndex < 9) {
+                    prefix = `[${audioIndex + 1}] `;
+                }
+
                 const input = document.createElement('input');
                 input.className = 'block-content';
                 input.type = 'text';
-                input.value = prefix + block.title;
+                input.value = prefix + (block.title || 'Audio');
+                input.style.cssText = 'padding:6px 10px; font-size:13px; border:1px solid #cbd5e1; border-radius:6px; font-weight:600; width:100%; box-sizing:border-box;';
                 
                 input.addEventListener('change', (e) => {
                     let val = e.target.value;
@@ -302,78 +440,56 @@ export class EscaletaUI {
                     this.notifyUpdate();
                 });
                 contentContainer.appendChild(input);
-            }
 
-            if (block.type === 'audio') {
+                // Opciones de fondo y "Todo el programa"
+                const audioOptionsRow = document.createElement('div');
+                audioOptionsRow.style.cssText = 'display:flex; align-items:center; gap:15px; font-size:12px; color:#475569;';
+
+                // Checkbox: Suena de fondo
                 const bgLabel = document.createElement('label');
-                bgLabel.style.fontSize = '12px';
-                bgLabel.style.color = '#555';
-                bgLabel.style.display = 'flex';
-                bgLabel.style.alignItems = 'center';
-                bgLabel.style.gap = '5px';
-                
+                bgLabel.style.cssText = 'display:flex; align-items:center; gap:5px; cursor:pointer;';
                 const bgCheck = document.createElement('input');
                 bgCheck.type = 'checkbox';
-                bgCheck.checked = !!block.isBackground || block.category === 'musica';
+                bgCheck.checked = !!block.isBackground || block.category === 'musica' || !!block.isFullProgram;
                 bgCheck.addEventListener('change', (e) => {
                     block.isBackground = e.target.checked;
                     this.notifyUpdate();
                 });
-                
                 bgLabel.appendChild(bgCheck);
-                bgLabel.appendChild(document.createTextNode('Suena de fondo (marcador de timeline)'));
-                contentContainer.appendChild(bgLabel);
+                bgLabel.appendChild(document.createTextNode('Música / Fondo'));
+                audioOptionsRow.appendChild(bgLabel);
+
+                // Checkbox: "Todo el programa"
+                const fullProgLabel = document.createElement('label');
+                fullProgLabel.style.cssText = 'display:flex; align-items:center; gap:5px; cursor:pointer; color:#0f766e; font-weight:600;';
+                const fullProgCheck = document.createElement('input');
+                fullProgCheck.type = 'checkbox';
+                fullProgCheck.checked = !!block.isFullProgram;
+                fullProgCheck.addEventListener('change', (e) => {
+                    block.isFullProgram = e.target.checked;
+                    if (block.isFullProgram) {
+                        block.isBackground = true;
+                        bgCheck.checked = true;
+                    }
+                    this.syncFullProgramDurations();
+                    this.render();
+                    this.notifyUpdate();
+                });
+                fullProgLabel.appendChild(fullProgCheck);
+                fullProgLabel.appendChild(document.createTextNode('🎵 Todo el programa'));
+                audioOptionsRow.appendChild(fullProgLabel);
+
+                contentContainer.appendChild(audioOptionsRow);
             }
 
+            // === BOTONES DE ACCIÓN (TTS, PRE-ESCUCHA, BORRAR) ===
             const actions = document.createElement('div');
             actions.className = 'block-actions';
             
             if (block.type === 'text') {
-                // Selector de voz para este bloque
-                const voiceSelect = document.createElement('select');
-                voiceSelect.className = 'block-voice-select';
-                voiceSelect.style.cssText = 'padding: 4px; font-size: 11px; margin-right: 5px; max-width: 130px; border-radius: 4px; border: 1px solid #ccc;';
-                voiceSelect.title = "Las voces dependen de tu Sistema Operativo (Windows, Mac, etc.)";
-                
-                const populateBlockVoice = () => {
-                    voiceSelect.innerHTML = '';
-                    if (window.availableVoices && window.availableVoices.length > 0) {
-                        window.availableVoices.forEach(v => {
-                            const opt = document.createElement('option');
-                            opt.value = v.voiceURI;
-                            opt.textContent = v.name.replace(/Microsoft |Google |Apple /gi, '');
-                            if (block.voiceURI === v.voiceURI) opt.selected = true;
-                            voiceSelect.appendChild(opt);
-                        });
-                        // Asegurar que guardamos la voz seleccionada
-                        if (!block.voiceURI && voiceSelect.value) {
-                            block.voiceURI = voiceSelect.value;
-                        }
-                    } else {
-                        voiceSelect.innerHTML = '<option value="">Sin voces disponibles</option>';
-                    }
-                };
-                
-                populateBlockVoice();
-                window.addEventListener('tts_voices_loaded', populateBlockVoice);
-                
-                voiceSelect.addEventListener('change', (e) => {
-                    block.voiceURI = e.target.value;
-                    this.notifyUpdate(); // Guardar al cambiar
-                });
-
-                const infoIcon = document.createElement('i');
-                infoIcon.className = 'fa-solid fa-circle-info';
-                infoIcon.style.cssText = 'color: #999; font-size: 11px; margin-right: 8px; cursor: help;';
-                infoIcon.title = "Atención: Las voces mostradas dependen exclusivamente del sistema operativo de tu ordenador (Windows, macOS, etc.) y del navegador que estés usando.";
-                
-                actions.appendChild(voiceSelect);
-                actions.appendChild(infoIcon);
-
-                // Botón Leer
                 const btnSpeak = document.createElement('button');
                 btnSpeak.innerHTML = '<i class="fa-solid fa-volume-high"></i>';
-                btnSpeak.title = "Leer texto en voz alta";
+                btnSpeak.title = "Leer texto en voz alta (TTS)";
                 btnSpeak.className = 'btn-speak';
                 btnSpeak.style.marginRight = '5px';
                 btnSpeak.addEventListener('click', () => {
@@ -382,59 +498,41 @@ export class EscaletaUI {
                         btnSpeak.innerHTML = '<i class="fa-solid fa-volume-high"></i>';
                     } else if (block.content && block.content.trim() !== '') {
                         const utterance = new SpeechSynthesisUtterance(block.content);
-                        utterance.lang = 'es-ES'; // Castellano
+                        utterance.lang = 'es-ES';
                         if (typeof window.getVoiceByURI === 'function') {
                             const selectedVoice = window.getVoiceByURI(block.voiceURI);
-                            if (selectedVoice) {
-                                utterance.voice = selectedVoice;
-                            }
+                            if (selectedVoice) utterance.voice = selectedVoice;
                         }
-                        
-                        utterance.onstart = () => {
-                            btnSpeak.innerHTML = '<i class="fa-solid fa-stop"></i>';
-                        };
-                        utterance.onend = () => {
-                            btnSpeak.innerHTML = '<i class="fa-solid fa-volume-high"></i>';
-                        };
-                        utterance.onerror = () => {
-                            btnSpeak.innerHTML = '<i class="fa-solid fa-volume-high"></i>';
-                        };
-                        
+                        utterance.onstart = () => btnSpeak.innerHTML = '<i class="fa-solid fa-stop"></i>';
+                        utterance.onend = () => btnSpeak.innerHTML = '<i class="fa-solid fa-volume-high"></i>';
+                        utterance.onerror = () => btnSpeak.innerHTML = '<i class="fa-solid fa-volume-high"></i>';
                         window.speechSynthesis.speak(utterance);
                     }
                 });
                 actions.appendChild(btnSpeak);
             }
 
-            // === BOTÓN DE PRE-ESCUCHA PARA AUDIOS ===
             if (block.type === 'audio' && block.audioUrl) {
                 const btnAudioPreview = document.createElement('button');
                 btnAudioPreview.innerHTML = '<i class="fa-solid fa-play"></i>';
                 btnAudioPreview.title = "Pre-escuchar audio";
-                btnAudioPreview.className = 'btn-speak btn-audio-preview'; // Reutilizamos clase css btn-speak
+                btnAudioPreview.className = 'btn-speak btn-audio-preview';
                 btnAudioPreview.style.marginRight = '5px';
                 
                 btnAudioPreview.addEventListener('click', () => {
                     let globalPlayer = document.getElementById('globalAudioPlayer');
-                    
-                    // Si este mismo bloque ya está sonando, lo pausamos
                     if (globalPlayer && !globalPlayer.paused && globalPlayer.dataset.currentBlock === block.id) {
                         globalPlayer.pause();
                         btnAudioPreview.innerHTML = '<i class="fa-solid fa-play"></i>';
                         globalPlayer.dataset.currentBlock = '';
                         return;
                     }
-
-                    // Detener cualquier otra pre-escucha activa
                     if (globalPlayer && !globalPlayer.paused) {
                         globalPlayer.pause();
                     }
-                    // Resetear todos los iconos a play
                     document.querySelectorAll('.btn-audio-preview').forEach(b => {
                         b.innerHTML = '<i class="fa-solid fa-play"></i>';
                     });
-
-                    // Reproducir el nuevo
                     if (globalPlayer) {
                         const playUrl = (block.audioUrl || '').replace('res.cloudinary.com', 'res-1.cloudinary.com');
                         globalPlayer.src = playUrl;
@@ -446,7 +544,6 @@ export class EscaletaUI {
                             btnAudioPreview.innerHTML = '<i class="fa-solid fa-play"></i>';
                             globalPlayer.dataset.currentBlock = '';
                         });
-                        
                         globalPlayer.onended = () => {
                             btnAudioPreview.innerHTML = '<i class="fa-solid fa-play"></i>';
                             globalPlayer.dataset.currentBlock = '';
@@ -461,7 +558,6 @@ export class EscaletaUI {
             btnDelete.title = "Eliminar bloque";
             btnDelete.className = 'btn-delete';
             btnDelete.addEventListener('click', () => this.removeBlock(block.id));
-            
             actions.appendChild(btnDelete);
 
             el.appendChild(timeContainer);

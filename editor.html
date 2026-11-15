@@ -8,7 +8,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Editor - Radioescaleta</title>
     <link rel="stylesheet" href="./css/common.css?v=12">
-    <link rel="stylesheet" href="./css/editor.css?v=13">
+    <link rel="stylesheet" href="./css/editor.css?v=14">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <!-- Librerías Externas -->
@@ -100,27 +100,38 @@
         <!-- Sidebar -->
         <div class="sidebar">
             <div class="sidebar-section">
-                <button class="add-block-btn" id="btnAddText">Bloque texto</button>
-                <button class="add-block-btn audio" id="btnAddAudio">Bloque audio</button>
+                <button class="add-block-btn" id="btnAddText"><i class="fa-solid fa-align-left"></i> Bloque texto</button>
+                <button class="add-block-btn audio" id="btnAddAudio"><i class="fa-solid fa-volume-high"></i> Bloque audio</button>
             </div>
             
-            <div class="sidebar-section" style="margin-top: 30px;">
+            <div class="sidebar-section categories-section">
                 <div class="audio-category" data-category="sintonias">
                     <i class="fa-solid fa-arrow-down"></i> Sintonías
                 </div>
-                <div class="audio-category" data-category="efectos">
-                    <i class="fa-solid fa-arrow-down"></i> Efectos
+                <div class="audio-category" data-category="sintonias-precargadas">
+                    <i class="fa-solid fa-arrow-down"></i> Sintonías precargadas
                 </div>
                 <div class="audio-category" data-category="musica">
                     <i class="fa-solid fa-arrow-down"></i> Música de fondo
                 </div>
             </div>
 
+            <!-- Botonera de efectos (6 pads estilo Soundboard) -->
+            <div class="sidebar-soundboard-card">
+                <div class="soundboard-header">
+                    <i class="fa-solid fa-bullhorn"></i> Botonera de efectos
+                </div>
+                <div class="soundboard-grid" id="editorSoundboardGrid">
+                    <!-- 6 pads generados dinámicamente -->
+                </div>
+                <div class="soundboard-hint">Haz clic en un botón para asignar efecto o atajo</div>
+            </div>
+
             <button class="upload-btn" id="btnUploadDrive">
                 <i class="fa-solid fa-cloud-arrow-up"></i> Subir
             </button>
 
-            <button class="add-block-btn" id="btnExternalLibs" style="margin-top: 10px; background-color: #bbdefb;">
+            <button class="add-block-btn btn-libs" id="btnExternalLibs">
                 <i class="fa-solid fa-globe"></i> Bibliotecas Libres
             </button>
         </div>
@@ -231,7 +242,7 @@
     <audio id="globalAudioPlayer" style="display:none;"></audio>
 
     <!-- Scripts (Módulos JS) -->
-    <script type="module" src="./js/editor.js?v=47"></script>
+    <script type="module" src="./js/editor.js?v=48"></script>
     <div id="toastMessage" style="visibility: hidden; min-width: 250px; background-color: #333; color: #fff; text-align: center; border-radius: 5px; padding: 16px; position: fixed; z-index: 2000; left: 50%; bottom: 30px; transform: translateX(-50%); opacity: 0; transition: opacity 0.3s, visibility 0.3s;">Guardado correctamente</div>
 </body>
 </html>

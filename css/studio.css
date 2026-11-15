@@ -207,6 +207,117 @@ body.studio-body {
     font-weight: bold;
 }
 
+/* === Botonera de efectos en directo (6 pads) === */
+.studio-soundboard-panel {
+    background: #1a1a2e;
+    border-radius: 12px;
+    padding: 10px 14px;
+    display: flex;
+    flex-direction: column;
+    width: 290px;
+    flex-shrink: 0;
+    overflow: hidden;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
+}
+
+.studio-soundboard-panel .soundboard-title {
+    color: #eee;
+    font-size: 11px;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+}
+
+.studio-soundboard-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+    gap: 8px;
+    flex: 1;
+    min-height: 0;
+}
+
+.studio-soundboard-pad {
+    position: relative;
+    border: none;
+    border-radius: 8px;
+    background: var(--pad-color, #ef4444);
+    color: #ffffff;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 6px;
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.35);
+    transition: transform 0.1s ease, filter 0.15s ease, box-shadow 0.15s ease;
+    user-select: none;
+    outline: none;
+    overflow: hidden;
+}
+
+.studio-soundboard-pad:hover {
+    filter: brightness(1.15);
+    transform: translateY(-1px);
+    box-shadow: 0 5px 12px rgba(0, 0, 0, 0.45);
+}
+
+.studio-soundboard-pad:active,
+.studio-soundboard-pad.pressed {
+    transform: scale(0.93);
+    filter: brightness(0.85);
+}
+
+.studio-soundboard-pad.playing {
+    animation: studioPadPulse 0.8s infinite alternate ease-in-out;
+    filter: brightness(1.25);
+    box-shadow: 0 0 14px var(--pad-color, #ffffff), 0 0 22px rgba(255, 255, 255, 0.5);
+}
+
+@keyframes studioPadPulse {
+    from {
+        box-shadow: 0 0 8px var(--pad-color, #ffffff);
+    }
+    to {
+        box-shadow: 0 0 18px var(--pad-color, #ffffff), 0 0 25px rgba(255, 255, 255, 0.7);
+    }
+}
+
+.studio-soundboard-pad .pad-key-badge {
+    position: absolute;
+    top: 2px;
+    left: 4px;
+    background: rgba(0, 0, 0, 0.5);
+    color: #ffffff;
+    font-size: 9px;
+    font-weight: 800;
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-family: monospace;
+    line-height: 1;
+}
+
+.studio-soundboard-pad .pad-icon {
+    font-size: 16px;
+    margin-bottom: 2px;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.4);
+}
+
+.studio-soundboard-pad .pad-label {
+    font-size: 11px;
+    font-weight: 700;
+    max-width: 90%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: center;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+    line-height: 1.1;
+}
+
 /* === ROW 2: Botonera (max 20vh) === */
 #studio-board-row {
     max-height: 20vh;

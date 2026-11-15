@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Estudio en Directo — Radioescaleta</title>
     <link rel="stylesheet" href="./css/common.css?v=12">
-    <link rel="stylesheet" href="./css/studio.css?v=7">
+    <link rel="stylesheet" href="./css/studio.css?v=8">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
@@ -66,6 +66,16 @@
                 </div>
             </div>
 
+            <!-- Botonera de efectos en directo (6 pads) -->
+            <div id="studio-soundboard" class="studio-soundboard-panel">
+                <div class="soundboard-title">
+                    <i class="fa-solid fa-bullhorn" style="color:#f06292;margin-right:6px;"></i>BOTONERA DE EFECTOS
+                </div>
+                <div class="studio-soundboard-grid" id="studioSoundboardGrid">
+                    <!-- 6 pads generados por studio.js -->
+                </div>
+            </div>
+
         </div>
 
         <!-- ROW 2: Botonera -->
@@ -108,6 +118,6 @@
 
     <audio id="globalAudioPlayer" style="display:none;"></audio>
 
-    <script type="module" src="./js/studio.js?v=9"></script>
+    <script type="module" src="./js/studio.js?v=10"></script>
 </body>
 </html>

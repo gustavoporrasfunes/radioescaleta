@@ -3,7 +3,7 @@
 import { authService } from './services/authService.js?v=2';
 import { dbService } from './services/dbService.js?v=6';
 import { setupUserProfile } from './utils/profileUI.js?v=12';
-import { Program } from './models/Program.js';
+import { Program, DEFAULT_SOUNDBOARD } from './models/Program.js';
 import { AudioBoard } from './components/AudioBoard.js?v=8';
 
 let currentProgram = new Program();
@@ -52,6 +52,7 @@ function initStudio(user) {
     renderEscaleta();
     initAudioBoard();
     initMixer();
+    initSoundboard();
     initTimer();
     initRecording();
 }
@@ -91,7 +92,12 @@ window.openTextInAntena = function(block) {
 
     // Show row
     readerRow.style.display = 'flex';
-    contentDiv.innerHTML = (block.content || '').replace(/</g, '&lt;').replace(/\n/g, '<br>');
+    
+    let speakerHtml = '';
+    if (block.speaker) {
+        speakerHtml = `<div style="margin-bottom:10px;padding:6px 14px;background:#e0f2fe;color:#0369a1;border-left:4px solid #0284c7;border-radius:4px;font-weight:700;font-size:14px;display:inline-block;"><i class="fa-solid fa-microphone-lines"></i> LOCUTOR/A: <span style="color:#0f172a;text-decoration:underline;">${block.speaker}</span></div><br>`;
+    }
+    contentDiv.innerHTML = speakerHtml + (block.content || '').replace(/</g, '&lt;').replace(/\n/g, '<br>');
 
     // Populate voices
     voiceSel.innerHTML = '';
@@ -179,6 +185,14 @@ function renderEscaleta() {
         el.appendChild(badge);
 
         if (block.type === 'text') {
+            if (block.speaker) {
+                const speakerBadge = document.createElement('span');
+                speakerBadge.className = 'block-speaker-badge';
+                speakerBadge.innerHTML = `<i class="fa-solid fa-microphone-lines"></i> ${block.speaker}`;
+                speakerBadge.style.cssText = 'font-size:11px;font-weight:700;color:#0284c7;background:#e0f2fe;padding:2px 8px;border-radius:10px;margin-right:8px;flex-shrink:0;';
+                el.appendChild(speakerBadge);
+            }
+
             // Show first line as preview; click opens full text
             const preview = document.createElement('div');
             preview.className = 'block-content-preview';
@@ -263,6 +277,11 @@ function initMixer() {
                     if (p && !p.paused) p.volume = v * masterVol;
                 });
             }
+            if (def.key === 'efectos') {
+                Object.values(soundboardPlayers).forEach(p => {
+                    if (p && !p.paused) p.volume = v * masterVol;
+                });
+            }
             if (def.key === 'voz' && window.currentMicGainNode) {
                 window.currentMicGainNode.gain.value = v * masterVol;
             }
@@ -281,6 +300,11 @@ function initMixer() {
                 }
             });
         }
+        Object.values(soundboardPlayers).forEach(p => {
+            if (p && !p.paused) {
+                p.volume = (channelVolumes.efectos || 0.8) * v;
+            }
+        });
         if (window.currentMicGainNode) {
             window.currentMicGainNode.gain.value = (channelVolumes.voz || 1.0) * v;
         }
@@ -374,6 +398,109 @@ function makeChannelEl(label, color, initVol, onChange, isMaster = false) {
     ch.appendChild(faderWrap);
     ch.appendChild(name);
     return ch;
+}
+
+// ──────────────────────────────────────────────
+//  BOTONERA DE EFECTOS (Soundboard 6 pads en directo)
+// ──────────────────────────────────────────────
+const soundboardPlayers = {};
+
+function initSoundboard() {
+    const container = document.getElementById('studioSoundboardGrid');
+    if (!container) return;
+    container.innerHTML = '';
+
+    const pads = (currentProgram.soundboard && currentProgram.soundboard.length === 6)
+        ? currentProgram.soundboard
+        : DEFAULT_SOUNDBOARD;
+
+    pads.forEach((pad, index) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'studio-soundboard-pad';
+        btn.id = `studio-pad-${index}`;
+        btn.dataset.padIndex = index;
+        btn.dataset.key = (pad.key || String(index + 1)).toUpperCase();
+        btn.style.setProperty('--pad-color', pad.color || '#ef4444');
+        btn.title = `Efecto ${index + 1}: ${pad.name} (Tecla: ${pad.key || (index + 1)})`;
+
+        btn.innerHTML = `
+            <span class="pad-key-badge">${pad.key || (index + 1)}</span>
+            <div class="pad-icon"><i class="fa-solid ${pad.icon || 'fa-bolt'}"></i></div>
+            <div class="pad-label">${pad.name || 'Efecto ' + (index + 1)}</div>
+        `;
+
+        btn.addEventListener('click', () => {
+            triggerSoundboardPad(pad, index, btn);
+        });
+
+        container.appendChild(btn);
+    });
+
+    // Teclado para activar pads en directo (teclas 1 a 6 o teclas configuradas)
+    document.addEventListener('keydown', (e) => {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
+        const pressedKey = e.key.toUpperCase();
+        const padIndex = pads.findIndex((p, idx) => {
+            const assignedKey = (p.key || String(idx + 1)).toUpperCase();
+            return assignedKey === pressedKey || String(idx + 1) === pressedKey;
+        });
+
+        if (padIndex !== -1) {
+            e.preventDefault();
+            const btn = document.getElementById(`studio-pad-${padIndex}`);
+            if (btn) {
+                btn.classList.add('pressed');
+                setTimeout(() => btn.classList.remove('pressed'), 120);
+                triggerSoundboardPad(pads[padIndex], padIndex, btn);
+            }
+        }
+    });
+}
+
+function triggerSoundboardPad(pad, index, btn) {
+    if (!pad || !pad.url) {
+        console.warn('Pad sin audio asignado');
+        return;
+    }
+
+    const soundUrl = (pad.url || '').replace('res.cloudinary.com', 'res-1.cloudinary.com');
+    const playerKey = `pad_${index}`;
+
+    let player = soundboardPlayers[playerKey];
+    if (!player) {
+        player = new Audio(soundUrl);
+        soundboardPlayers[playerKey] = player;
+
+        // Si Firefox / Web Audio está activo y hay stream destination
+        if (audioBoard && audioBoard.audioContext && audioBoard.streamDestination) {
+            try {
+                audioBoard._connectPlayerToContext(player);
+            } catch (err) {
+                console.warn("Web Audio connect error for pad:", err);
+            }
+        }
+    } else if (player.src !== soundUrl && !player.src.endsWith(soundUrl)) {
+        player.src = soundUrl;
+    }
+
+    const fxVol = (channelVolumes.efectos !== undefined ? channelVolumes.efectos : 0.8) * masterVol;
+    player.volume = Math.max(0, Math.min(1.0, fxVol));
+    player.currentTime = 0;
+
+    btn.classList.add('playing');
+
+    player.onended = () => {
+        btn.classList.remove('playing');
+    };
+    player.onerror = () => {
+        btn.classList.remove('playing');
+    };
+
+    player.play().catch(err => {
+        console.warn('Error al reproducir audio de botonera:', err);
+        btn.classList.remove('playing');
+    });
 }
 
 // ──────────────────────────────────────────────

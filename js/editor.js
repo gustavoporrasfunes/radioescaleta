@@ -3,7 +3,7 @@ import { authService } from './services/authService.js?v=2';
 import { cloudinaryService } from './services/cloudinaryService.js';
 import { setupUserProfile } from './utils/profileUI.js?v=12';
 import { dbService } from './services/dbService.js?v=6';
-import { Program } from './models/Program.js';
+import { Program, DEFAULT_SOUNDBOARD } from './models/Program.js';
 import { EscaletaUI } from './components/EscaletaUI.js?v=7';
 import { GanttUI } from './components/GanttUI.js?v=3';
 import { downloadPDF } from './utils/pdfGenerator.js?v=2';
@@ -98,7 +98,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 async function initEditor(user) {
     // 2. Inicializar Componentes
-    const ganttUI = new GanttUI('ganttContainer');
+    let onEscaletaUpdate;
+    const ganttUI = new GanttUI('ganttContainer', () => {
+        if (onEscaletaUpdate) onEscaletaUpdate();
+    });
     
     let autoSaveTimer = null;
     const triggerAutoSave = () => {
@@ -116,13 +119,14 @@ async function initEditor(user) {
     };
 
     // Callback cuando la escaleta cambia para actualizar la botonera y el gantt (si está activo)
-    const onEscaletaUpdate = () => {
+    onEscaletaUpdate = () => {
         if (isInitialized) {
             triggerAutoSave();
         }
         if (document.body.classList.contains('gantt-active')) {
             ganttUI.render(currentProgram);
         }
+        renderEditorSoundboard();
     };
 
     escaletaUI = new EscaletaUI('escaletaList', currentProgram, onEscaletaUpdate);
@@ -635,15 +639,25 @@ function openLibraryModal(category, onSelect) {
     
     let titleMap = {
         'sintonias': 'Sintonías',
-        'efectos': 'Efectos',
+        'sintonias-precargadas': 'Sintonías Precargadas (Sistema)',
+        'efectos': 'Efectos de Sonido',
         'musica': 'Música de Fondo'
     };
     
-    document.getElementById('modalTitle').innerText = titleMap[category];
+    document.getElementById('modalTitle').innerText = titleMap[category] || 'Seleccionar Audio';
 
-    // Usar la librería de Firestore si está disponible, si no la local
-    const library = sharedLibrary || defaultLibrary;
-    const items = library[category] || [];
+    let actualCategory = category;
+    let items = [];
+    if (category === 'sintonias-precargadas') {
+        actualCategory = 'sintonia';
+        items = defaultLibrary.sintonias || [];
+    } else {
+        const library = sharedLibrary || defaultLibrary;
+        items = library[category] || [];
+        if (category === 'sintonias' && items.length === 0) {
+            items = defaultLibrary.sintonias || [];
+        }
+    }
     
     if (items.length === 0) {
         list.innerHTML = '<li style="color:#aaa; padding:10px;">No hay audios en esta categoría.</li>';
@@ -680,7 +694,7 @@ function openLibraryModal(category, onSelect) {
             btn.onclick = () => {
                 if (previewAudio) previewAudio.pause();
                 const soundUrl = (item.url || '').replace('res.cloudinary.com', 'res-1.cloudinary.com');
-                onSelect({ category, title: item.title, url: soundUrl });
+                onSelect({ category: (category === 'sintonias-precargadas' ? 'sintonia' : category), title: item.title, url: soundUrl });
                 modal.style.display = 'none';
             };
             
@@ -696,6 +710,139 @@ function openLibraryModal(category, onSelect) {
     }
 
     modal.style.display = "block";
+}
+
+// ──────────────────────────────────────────────
+//  BOTONERA DE EFECTOS (EDITOR)
+// ──────────────────────────────────────────────
+function renderEditorSoundboard() {
+    const grid = document.getElementById('editorSoundboardGrid');
+    if (!grid) return;
+    grid.innerHTML = '';
+
+    const pads = currentProgram.soundboard || DEFAULT_SOUNDBOARD;
+
+    pads.forEach((pad, index) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'editor-soundboard-pad';
+        btn.style.setProperty('--pad-color', pad.color || '#ef4444');
+        btn.title = `Botón ${index + 1} (Tecla: ${pad.key}): ${pad.name}. Clic para configurar`;
+
+        btn.innerHTML = `
+            <div class="pad-shortcut">${pad.key || (index + 1)}</div>
+            <div class="pad-icon"><i class="fa-solid ${pad.icon || 'fa-bolt'}"></i></div>
+            <div class="pad-name">${pad.name || 'Sin asignar'}</div>
+        `;
+
+        btn.addEventListener('click', () => {
+            openConfigureSoundboardModal(pad, index);
+        });
+
+        grid.appendChild(btn);
+    });
+}
+
+function openConfigureSoundboardModal(pad, index) {
+    const library = sharedLibrary || defaultLibrary;
+    const allEffects = library.efectos || defaultLibrary.efectos || [];
+
+    let optionsHtml = '';
+    allEffects.forEach(ef => {
+        const isSelected = (pad.name === ef.title) || (pad.url && pad.url.includes(ef.title));
+        optionsHtml += `<option value="${ef.url}" data-title="${ef.title}" data-icon="${ef.icon || 'fa-bolt'}" ${isSelected ? 'selected' : ''}>${ef.title}</option>`;
+    });
+
+    Swal.fire({
+        title: `<div style="color:${pad.color || '#00acc1'};display:flex;align-items:center;gap:8px;justify-content:center;"><i class="fa-solid fa-bullhorn"></i> Configurar Botón ${index + 1}</div>`,
+        html: `
+            <div style="text-align:left;display:flex;flex-direction:column;gap:12px;padding:6px 0;">
+                <div>
+                    <label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:4px;">Efecto de sonido asignado:</label>
+                    <div style="display:flex;gap:8px;">
+                        <select id="padSoundSelect" style="flex:1;padding:8px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;">
+                            ${optionsHtml}
+                        </select>
+                        <button type="button" id="btnPreviewPad" class="btn" style="background:#f1f5f9;color:#334155;border:1px solid #cbd5e1;padding:6px 12px;border-radius:6px;font-size:13px;cursor:pointer;">
+                            <i class="fa-solid fa-play"></i> Probar
+                        </button>
+                    </div>
+                </div>
+                <div style="display:flex;gap:10px;">
+                    <div style="flex:2;">
+                        <label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:4px;">Etiqueta en el botón:</label>
+                        <input type="text" id="padNameInput" value="${pad.name}" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;">
+                    </div>
+                    <div style="flex:1;">
+                        <label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:4px;">Tecla rápida:</label>
+                        <input type="text" id="padKeyInput" maxlength="2" value="${pad.key}" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;text-align:center;font-weight:bold;text-transform:uppercase;">
+                    </div>
+                </div>
+            </div>
+        `,
+        showCancelButton: true,
+        confirmButtonText: 'Guardar en Botonera',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: pad.color || '#00acc1',
+        didOpen: () => {
+            const sel = document.getElementById('padSoundSelect');
+            const nameInput = document.getElementById('padNameInput');
+            const btnPreview = document.getElementById('btnPreviewPad');
+            let testAudio = null;
+
+            sel.addEventListener('change', () => {
+                const opt = sel.options[sel.selectedIndex];
+                if (opt) {
+                    nameInput.value = opt.dataset.title || opt.text;
+                }
+            });
+
+            btnPreview.addEventListener('click', () => {
+                if (testAudio && !testAudio.paused) {
+                    testAudio.pause();
+                    testAudio = null;
+                    btnPreview.innerHTML = '<i class="fa-solid fa-play"></i> Probar';
+                    return;
+                }
+                const url = sel.value;
+                if (!url) return;
+                testAudio = new Audio(url.replace('res.cloudinary.com', 'res-1.cloudinary.com'));
+                testAudio.play().then(() => {
+                    btnPreview.innerHTML = '<i class="fa-solid fa-stop"></i> Detener';
+                }).catch(e => console.warn(e));
+                testAudio.onended = () => {
+                    btnPreview.innerHTML = '<i class="fa-solid fa-play"></i> Probar';
+                    testAudio = null;
+                };
+            });
+        }
+    }).then(res => {
+        if (res.isConfirmed) {
+            const sel = document.getElementById('padSoundSelect');
+            const opt = sel.options[sel.selectedIndex];
+            const newName = document.getElementById('padNameInput').value.trim() || (opt ? opt.text : `FX ${index + 1}`);
+            const newKey = document.getElementById('padKeyInput').value.trim().toUpperCase() || String(index + 1);
+            const newUrl = sel.value;
+            const newIcon = opt ? (opt.dataset.icon || 'fa-bolt') : 'fa-bolt';
+
+            if (!currentProgram.soundboard) {
+                currentProgram.soundboard = JSON.parse(JSON.stringify(DEFAULT_SOUNDBOARD));
+            }
+
+            currentProgram.soundboard[index] = {
+                ...currentProgram.soundboard[index],
+                name: newName,
+                key: newKey,
+                url: newUrl,
+                icon: newIcon
+            };
+
+            renderEditorSoundboard();
+            if (typeof onEscaletaUpdate === 'function') {
+                onEscaletaUpdate();
+            }
+        }
+    });
 }
 
 // Exponer addIntegratedAudio globalmente

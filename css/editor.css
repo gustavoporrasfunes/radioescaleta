@@ -263,49 +263,189 @@ body:not(.live-mode) {
 }
 
 .add-block-btn {
-  background-color: #e1bee7;
-  color: #333;
-  padding: 15px;
-  border-radius: 25px;
-  border: none;
-  font-weight: bold;
+  background: linear-gradient(135deg, #f3e8ff 0%, #e9d5ff 100%);
+  color: #6b21a8;
+  padding: 13px 18px;
+  border-radius: 14px;
+  border: 1px solid #d8b4fe;
+  font-weight: 700;
+  font-size: 14px;
   cursor: pointer;
   text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 2px 4px rgba(107, 33, 168, 0.08);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.add-block-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(107, 33, 168, 0.18);
+  background: linear-gradient(135deg, #ede9fe 0%, #ddd6fe 100%);
 }
 
 .add-block-btn.audio {
-  background-color: #f8bbd0;
+  background: linear-gradient(135deg, #ffe4e6 0%, #fecdd3 100%);
+  color: #be123c;
+  border-color: #fda4af;
+  box-shadow: 0 2px 4px rgba(190, 18, 60, 0.08);
+}
+
+.add-block-btn.audio:hover {
+  background: linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%);
+  box-shadow: 0 4px 10px rgba(190, 18, 60, 0.18);
 }
 
 .audio-category {
   display: flex;
   align-items: center;
   gap: 10px;
-  background-color: var(--secondary-color);
+  background: linear-gradient(135deg, #00acc1 0%, #00838f 100%);
   color: white;
-  padding: 10px 15px;
-  border-radius: 5px;
+  padding: 11px 16px;
+  border-radius: 12px;
   cursor: pointer;
+  font-size: 13.5px;
+  font-weight: 600;
+  box-shadow: 0 2px 5px rgba(0, 131, 143, 0.15);
+  transition: all 0.2s ease;
+}
+
+.audio-category:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 131, 143, 0.25);
+  background: linear-gradient(135deg, #26c6da 0%, #00acc1 100%);
 }
 
 .audio-category i {
-  font-size: 20px;
+  font-size: 14px;
+}
+
+/* Soundboard Card in Sidebar */
+.sidebar-soundboard-card {
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 14px;
+  padding: 12px;
+  box-shadow: 0 2px 8px rgba(2, 132, 199, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.soundboard-header {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0369a1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.soundboard-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.editor-soundboard-pad {
+  aspect-ratio: 1;
+  border-radius: 12px;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  color: white;
+  background-color: var(--pad-color, #ef4444);
+  box-shadow: 0 3px 6px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.3);
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  padding: 4px;
+  overflow: hidden;
+}
+
+.editor-soundboard-pad:hover {
+  transform: scale(1.05) translateY(-2px);
+  box-shadow: 0 6px 12px rgba(0,0,0,0.25);
+  filter: brightness(1.1);
+}
+
+.editor-soundboard-pad .pad-shortcut {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  background: rgba(0,0,0,0.35);
+  font-size: 9px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  font-family: monospace;
+  font-weight: bold;
+}
+
+.editor-soundboard-pad .pad-icon {
+  font-size: 17px;
+  margin-top: 4px;
+  margin-bottom: 2px;
+}
+
+.editor-soundboard-pad .pad-name {
+  font-size: 9px;
+  font-weight: 700;
+  text-align: center;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 95%;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+
+.soundboard-hint {
+  font-size: 10px;
+  color: #64748b;
+  text-align: center;
+  line-height: 1.3;
 }
 
 .upload-btn {
-  background-color: #e1bee7;
-  color: #333;
-  padding: 20px;
-  border-radius: 25px;
-  border: none;
-  font-weight: bold;
+  background: linear-gradient(135deg, #ede9fe 0%, #ddd6fe 100%);
+  color: #5b21b6;
+  border: 1px solid #c4b5fd;
+  padding: 12px;
+  border-radius: 14px;
+  font-weight: 700;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  font-size: 18px;
-  margin-top: 20px;
+  gap: 8px;
+  font-size: 14px;
+  box-shadow: 0 2px 4px rgba(91, 33, 182, 0.08);
+  transition: all 0.2s ease;
+}
+
+.upload-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(91, 33, 182, 0.16);
+  background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
+}
+
+.add-block-btn.btn-libs {
+  background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%);
+  color: #0369a1;
+  border-color: #7dd3fc;
+  box-shadow: 0 2px 4px rgba(3, 105, 161, 0.08);
+}
+
+.add-block-btn.btn-libs:hover {
+  background: linear-gradient(135deg, #bae6fd 0%, #7dd3fc 100%);
+  box-shadow: 0 4px 10px rgba(3, 105, 161, 0.16);
 }
 
 /* Modal for library */
@@ -520,24 +660,112 @@ body.gantt-active .gantt-container {
 
 .gantt-bar {
     position: absolute;
-    top: 30px;
-    height: 40px;
-    border-radius: 5px;
-    padding: 5px;
-    font-size: 11px;
-    color: #333;
+    top: 35px;
+    height: 42px;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 11.5px;
+    color: #1e293b;
+    overflow: visible;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+    display: flex;
+    align-items: center;
+    transition: box-shadow 0.15s ease, filter 0.15s ease;
+    user-select: none;
+    box-sizing: border-box;
+}
+
+.gantt-bar:hover {
+    filter: brightness(1.06);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.22);
+    z-index: 20;
+}
+
+.gantt-bar.is-dragging {
+    opacity: 0.88;
+    box-shadow: 0 8px 18px rgba(0,0,0,0.3) !important;
+    z-index: 100 !important;
+}
+
+.gantt-bar-content {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    width: 100%;
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-    display: flex;
-    align-items: center;
+    line-height: 1.25;
 }
 
-.gantt-bar.text { background-color: #b2ebf2; color: #333; }
-.gantt-bar.audio-sintonia { background-color: #f06292; color: white; }
-.gantt-bar.audio-efectos { background-color: #ff9800; color: white; }
-.gantt-bar.audio-musica { background-color: #4caf50; color: white; }
+.gantt-bar .bar-title {
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.gantt-bar .bar-badge {
+    font-size: 10px;
+    opacity: 0.9;
+    font-family: monospace;
+}
+
+.gantt-bar.text {
+    background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%);
+    border-left: 4px solid #0284c7;
+    color: #0369a1;
+}
+
+.gantt-bar.audio-sintonia {
+    background: linear-gradient(135deg, #fbcfe8 0%, #f472b6 100%);
+    border-left: 4px solid #db2777;
+    color: #831843;
+}
+
+.gantt-bar.audio-efectos {
+    background: linear-gradient(135deg, #fed7aa 0%, #fb923c 100%);
+    border-left: 4px solid #ea580c;
+    color: #7c2d12;
+}
+
+.gantt-bar.audio-musica {
+    background: linear-gradient(135deg, #dcfce7 0%, #86efac 100%);
+    border-left: 4px solid #16a34a;
+    color: #14532d;
+}
+
+.gantt-bar.full-program-bar {
+    background: linear-gradient(90deg, #14b8a6 0%, #0d9488 50%, #0f766e 100%) !important;
+    color: white !important;
+    border-left: 5px solid #042f2e !important;
+    box-shadow: 0 3px 8px rgba(13, 148, 136, 0.3) !important;
+}
+
+.gantt-drag-tooltip {
+    position: absolute;
+    top: -30px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #0f172a;
+    color: #38bdf8;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-family: monospace;
+    font-weight: bold;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 120;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    border: 1px solid #334155;
+}
+
+.gantt-mark.major {
+    color: #0284c7;
+    font-weight: bold;
+    font-size: 12px;
+}
 
 /* Nuevos estilos Botonera */
 .audio-btn-wrapper {
