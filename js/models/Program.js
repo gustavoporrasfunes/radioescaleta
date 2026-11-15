@@ -2,12 +2,12 @@
 import { TextBlock, AudioBlock } from "./Block.js";
 
 export const DEFAULT_SOUNDBOARD = [
-    { id: 'sb_1', key: 'F1', name: 'Aplausos', url: './assets/sounds/efectos/Aplausos1.mp3', color: '#e53935', icon: 'fa-hands-clapping' },
-    { id: 'sb_2', key: 'F2', name: 'Risas', url: './assets/sounds/efectos/Cartoon2.mp3', color: '#00acc1', icon: 'fa-face-laugh' },
-    { id: 'sb_3', key: 'F3', name: 'Campanas', url: './assets/sounds/efectos/Campanas.mp3', color: '#fb8c00', icon: 'fa-bell' },
-    { id: 'sb_4', key: 'F4', name: 'Alarma', url: './assets/sounds/efectos/Alarma2.mp3', color: '#7cb342', icon: 'fa-triangle-exclamation' },
-    { id: 'sb_5', key: 'F5', name: 'Golpe', url: './assets/sounds/efectos/Golpe.mp3', color: '#8e24aa', icon: 'fa-burst' },
-    { id: 'sb_6', key: 'F6', name: 'Clank', url: './assets/sounds/efectos/Clank1.mp3', color: '#1e40af', icon: 'fa-bolt' }
+    { id: 'sb_1', key: 'Q', name: 'Aplausos', url: './assets/sounds/efectos/Aplausos1.mp3', color: '#e53935', icon: 'fa-hands-clapping' },
+    { id: 'sb_2', key: 'W', name: 'Risas', url: './assets/sounds/efectos/Cartoon2.mp3', color: '#00acc1', icon: 'fa-face-laugh' },
+    { id: 'sb_3', key: 'E', name: 'Campanas', url: './assets/sounds/efectos/Campanas.mp3', color: '#fb8c00', icon: 'fa-bell' },
+    { id: 'sb_4', key: 'R', name: 'Alarma', url: './assets/sounds/efectos/Alarma2.mp3', color: '#7cb342', icon: 'fa-triangle-exclamation' },
+    { id: 'sb_5', key: 'T', name: 'Golpe', url: './assets/sounds/efectos/Golpe.mp3', color: '#8e24aa', icon: 'fa-burst' },
+    { id: 'sb_6', key: 'Y', name: 'Clank', url: './assets/sounds/efectos/Clank1.mp3', color: '#1e40af', icon: 'fa-bolt' }
 ];
 
 export class Program {
@@ -53,13 +53,14 @@ export class Program {
     static fromFirestore(data) {
         const p = new Program(data.title, data.ownerId);
         p.id = data.id;
+        const DEFAULT_KEYS = ['Q', 'W', 'E', 'R', 'T', 'Y'];
         if (data.soundboard && data.soundboard.length === 6) {
             p.soundboard = data.soundboard.map((item, idx) => {
                 let key = item.key;
-                if (!key || /^[1-6]$/.test(key)) {
-                    key = `F${idx + 1}`;
+                if (!key || /^[1-6]$/.test(key) || /^F[1-6]$/i.test(key)) {
+                    key = DEFAULT_KEYS[idx] || 'Q';
                 }
-                return { ...item, key };
+                return { ...item, key: key.toUpperCase() };
             });
         } else {
             p.soundboard = JSON.parse(JSON.stringify(DEFAULT_SOUNDBOARD));

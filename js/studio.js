@@ -410,12 +410,15 @@ function initSoundboard() {
     if (!container) return;
     container.innerHTML = '';
 
+    const DEFAULT_KEYS = ['Q', 'W', 'E', 'R', 'T', 'Y'];
     const pads = (currentProgram.soundboard && currentProgram.soundboard.length === 6)
         ? currentProgram.soundboard
         : DEFAULT_SOUNDBOARD;
 
     pads.forEach((pad, index) => {
-        const assignedKey = (pad.key && !/^[1-6]$/.test(pad.key)) ? pad.key : `F${index + 1}`;
+        const assignedKey = (pad.key && !/^[1-6]$/.test(pad.key) && !/^F[1-6]$/i.test(pad.key))
+            ? pad.key
+            : (DEFAULT_KEYS[index] || 'Q');
         pad.key = assignedKey;
 
         const btn = document.createElement('button');
@@ -440,17 +443,17 @@ function initSoundboard() {
         container.appendChild(btn);
     });
 
-    // Teclado para activar/desactivar pads en directo (F1 a F6 o teclas asignadas)
+    // Teclado para activar/desactivar pads en directo (Q, W, E, R, T, Y)
     document.addEventListener('keydown', (e) => {
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
         const pressedKey = e.key.toUpperCase();
         const padIndex = pads.findIndex((p, idx) => {
-            const assignedKey = (p.key || `F${idx + 1}`).toUpperCase();
+            const assignedKey = (p.key || DEFAULT_KEYS[idx] || 'Q').toUpperCase();
             return assignedKey === pressedKey;
         });
 
         if (padIndex !== -1) {
-            e.preventDefault(); // Prevenir ayuda de navegador (F1), buscar (F3), recargar (F5)...
+            e.preventDefault();
             const btn = document.getElementById(`studio-pad-${padIndex}`);
             if (btn) {
                 btn.classList.add('pressed');
