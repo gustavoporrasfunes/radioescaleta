@@ -5,7 +5,7 @@ import { setupUserProfile } from './utils/profileUI.js?v=12';
 import { dbService } from './services/dbService.js?v=6';
 import { Program, DEFAULT_SOUNDBOARD } from './models/Program.js';
 import { EscaletaUI } from './components/EscaletaUI.js?v=7';
-import { GanttUI } from './components/GanttUI.js?v=3';
+import { GanttUI } from './components/GanttUI.js?v=5';
 import { downloadPDF } from './utils/pdfGenerator.js?v=2';
 
 let currentProgram = new Program();

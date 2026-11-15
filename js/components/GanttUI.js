@@ -27,12 +27,12 @@ export class GanttUI {
                 lanes.push(b.startSec + Math.max(1, b.durSec));
             }
         });
-        return lanes.length;
+        return Math.max(1, lanes.length);
     }
 
     render(program) {
         this.container.innerHTML = '';
-        if (!program || program.blocks.length === 0) {
+        if (!program || !program.blocks || program.blocks.length === 0) {
             this.container.innerHTML = `
                 <div style="text-align:center; padding: 40px; color:#64748b;">
                     <i class="fa-solid fa-chart-gantt" style="font-size: 3em; margin-bottom: 12px; color:#cbd5e1;"></i>
@@ -65,11 +65,11 @@ export class GanttUI {
             if (b.isFullProgram) {
                 startSec = 0;
                 endSec = maxTime;
-            } else if (endSec < startSec) {
-                endSec = startSec + 5; // Duración mínima visual
+            } else if (endSec <= startSec) {
+                endSec = startSec + 10; // Duración mínima visual de 10s si fin <= inicio
             }
 
-            const durSec = Math.max(2, endSec - startSec);
+            const durSec = Math.max(3, endSec - startSec);
             if (endSec > maxTime) maxTime = endSec;
 
             const blockData = {
@@ -80,9 +80,10 @@ export class GanttUI {
                 durSec
             };
 
-            if (b.type === 'text') {
+            const isAudio = (b.type === 'audio' || !!b.audioUrl || (b.category && b.category !== 'text'));
+            if (!isAudio) {
                 vozTrack.push(blockData);
-            } else if (b.type === 'audio') {
+            } else {
                 if (b.isFullProgram || b.isBackground || b.category === 'musica') {
                     musicaTrack.push(blockData);
                 } else {
@@ -162,35 +163,46 @@ export class GanttUI {
     }
 
     createBar(bData, trackEl, program) {
-        if (bData.durSec <= 0) return;
+        if (!bData || bData.durSec <= 0) return;
 
-        const block = bData.rawBlock;
+        const block = bData.rawBlock || bData;
+        const isAudio = (block.type === 'audio' || !!block.audioUrl || (block.category && block.category !== 'text'));
+        
         const bar = document.createElement('div');
-        bar.className = `gantt-bar ${block.type}`;
-        if (block.type === 'audio') bar.classList.add(`audio-${block.category}`);
+        bar.className = `gantt-bar ${isAudio ? 'audio' : 'text'}`;
+        if (isAudio && block.category) bar.classList.add(`audio-${block.category}`);
         if (block.isFullProgram) bar.classList.add('full-program-bar');
 
         bar.style.left = `${bData.startSec * this.pixelsPerSecond}px`;
-        bar.style.width = `${Math.max(40, bData.durSec * this.pixelsPerSecond)}px`;
-        if (bData.lane !== undefined) {
-            bar.style.top = `${35 + (bData.lane * 50)}px`;
-        }
+        bar.style.width = `${Math.max(45, bData.durSec * this.pixelsPerSecond)}px`;
+        const lane = (bData.lane !== undefined) ? bData.lane : 0;
+        bar.style.top = `${35 + (lane * 50)}px`;
 
         // Título del bloque (locutor si es texto)
         let displayTitle = '';
-        if (block.type === 'text') {
+        if (!isAudio) {
             const speakerTag = block.speaker ? `[${block.speaker}] ` : '';
-            displayTitle = speakerTag + (block.content || 'Guión de texto');
+            const cleanContent = (block.content || 'Guión de texto').replace(/\s+/g, ' ').trim();
+            displayTitle = speakerTag + cleanContent;
         } else {
             displayTitle = (block.isFullProgram ? '🎵 [TODO EL PROGRAMA] ' : '') + (block.title || 'Audio');
         }
 
-        bar.innerHTML = `
-            <div class="gantt-bar-content">
-                <span class="bar-title">${displayTitle}</span>
-                <span class="bar-badge">${block.startTime} - ${block.endTime}</span>
-            </div>
-        `;
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'gantt-bar-content';
+
+        const titleSpan = document.createElement('span');
+        titleSpan.className = 'bar-title';
+        titleSpan.textContent = displayTitle;
+
+        const badgeSpan = document.createElement('span');
+        badgeSpan.className = 'bar-badge';
+        badgeSpan.textContent = `${block.startTime || '00:00'} - ${block.endTime || '00:00'}`;
+
+        contentDiv.appendChild(titleSpan);
+        contentDiv.appendChild(badgeSpan);
+        bar.appendChild(contentDiv);
+
         bar.title = `[${block.startTime} a ${block.endTime}] ${displayTitle} (Haz doble clic para editar o arrastra para mover)`;
 
         // === ARRASTRAR PARA SITUAR EN EL TIEMPO ===

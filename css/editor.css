@@ -896,9 +896,10 @@ body.gantt-active .gantt-container {
 }
 
 .gantt-bar.text {
-    background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%);
-    border-left: 4px solid #0284c7;
-    color: #0369a1;
+    background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%) !important;
+    border-left: 4px solid #0284c7 !important;
+    color: #0369a1 !important;
+    font-weight: 600;
 }
 
 .gantt-bar.audio-sintonia {
