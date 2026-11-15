@@ -24,13 +24,22 @@ export class AudioBoard {
     }
 
     render() {
-        this.container.innerHTML = '<h3>Botonera de audios</h3>';
+        this.container.innerHTML = '';
+
+        if (this.audioBlocks.length === 0) {
+            this.container.innerHTML = `
+                <div style="color:#94a3b8; font-size:13px; padding:15px; text-align:center; width:100%;">
+                    <i class="fa-solid fa-music" style="margin-right:6px; opacity:0.6;"></i>No hay pistas de audio (sintonías o música) en la escaleta.
+                </div>
+            `;
+            return;
+        }
 
         const wrapperDiv = document.createElement('div');
         wrapperDiv.style.cssText = 'display:flex;gap:15px;flex-wrap:wrap;justify-content:center;width:100%;';
         wrapperDiv.className = 'audio-buttons-container';
 
-        // === AUDIO BUTTONS ===
+        // === BOTONES EXCLUSIVAMENTE PARA AUDIOS (Sintonías y Música) ===
         this.audioBlocks.forEach((block, index) => {
             const btnWrapper = document.createElement('div');
             btnWrapper.className = 'audio-btn-wrapper';
@@ -46,7 +55,8 @@ export class AudioBoard {
 
             let iconClass = 'fa-music';
             if (block.category === 'efectos') iconClass = 'fa-bolt';
-            const t = block.title.toLowerCase();
+            else if (block.category === 'musica') iconClass = 'fa-headphones';
+            const t = (block.title || '').toLowerCase();
             if (t.includes('noticias')) iconClass = 'fa-newspaper';
             else if (t.includes('tranquila') || t.includes('fondo')) iconClass = 'fa-spa';
             else if (t.includes('aplausos')) iconClass = 'fa-hands-clapping';
@@ -76,47 +86,7 @@ export class AudioBoard {
             wrapperDiv.appendChild(btnWrapper);
         });
 
-        // === TEXT TRIGGER BUTTONS ===
-        this.textBlocks.forEach((block) => {
-            if (!block.content || !block.content.trim()) return;
-
-            const btnWrapper = document.createElement('div');
-            btnWrapper.className = 'audio-btn-wrapper';
-
-            const btn = document.createElement('button');
-            btn.className = 'audio-btn text-trigger-btn';
-            btn.id = 'btn-text-' + block.id;
-            btn.style.cssText = 'background:#00acc1;color:white;';
-            btn.innerHTML = '<i class="fa-solid fa-microphone-lines"></i>';
-            btn.dataset.iconClass = 'fa-microphone-lines';
-
-            const titleLabel = document.createElement('div');
-            titleLabel.className = 'btn-title';
-            const words = block.content.trim().split(/\s+/).slice(0, 4).join(' ');
-            titleLabel.innerText = '"' + words + (block.content.split(/\s+/).length > 4 ? '…"' : '"');
-
-            btn.addEventListener('click', () => {
-                // Use the TTS-enabled popup if available (studio.js), otherwise plain popup
-                if (typeof window.openTextInAntena === 'function') {
-                    window.openTextInAntena(block);
-                } else {
-                    Swal.fire({
-                        title: '<i class="fa-solid fa-microphone" style="color:#f06292;"></i> Texto en antena',
-                        html: '<div style="text-align:left;font-size:1.3em;line-height:1.9;white-space:pre-wrap;font-family:Georgia,serif;">' + block.content.replace(/</g, '&lt;') + '</div>',
-                        confirmButtonText: 'Cerrar',
-                        confirmButtonColor: '#00acc1',
-                        width: '750px'
-                    });
-                }
-            });
-
-            btnWrapper.appendChild(btn);
-            btnWrapper.appendChild(titleLabel);
-            wrapperDiv.appendChild(btnWrapper);
-        });
-
         this.container.appendChild(wrapperDiv);
-        this.renderMixer();
     }
 
     renderMixer() {

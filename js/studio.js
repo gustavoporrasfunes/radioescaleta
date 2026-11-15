@@ -4,7 +4,7 @@ import { authService } from './services/authService.js?v=2';
 import { dbService } from './services/dbService.js?v=6';
 import { setupUserProfile } from './utils/profileUI.js?v=12';
 import { Program, DEFAULT_SOUNDBOARD } from './models/Program.js';
-import { AudioBoard } from './components/AudioBoard.js?v=8';
+import { AudioBoard } from './components/AudioBoard.js?v=9';
 
 let currentProgram = new Program();
 let audioBoard = null;
