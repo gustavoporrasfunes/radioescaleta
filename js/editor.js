@@ -401,9 +401,7 @@ async function initEditor(user) {
     });
 
     document.getElementById('btnAddAudio').addEventListener('click', () => {
-        openLibraryModal('sintonias', (selected) => {
-            window.addAudioWithTimeCalculation(selected.title, selected.url, selected.category);
-        });
+        escaletaUI.addBlock('audio');
     });
 
     // Categorías de audio en el sidebar
@@ -701,8 +699,8 @@ function openLibraryModal(category, onSelect) {
 
     let titleMap = {
         'sintonias': 'Sintonías',
-        'sintonias_precargadas': 'Sintonías Precargadas (Librería Compartida)',
-        'sintonias-precargadas': 'Sintonías Precargadas (Librería Compartida)',
+        'sintonias_precargadas': 'Sintonías precargadas',
+        'sintonias-precargadas': 'Sintonías precargadas',
         'efectos': 'Efectos de Sonido',
         'musica': 'Música de Fondo'
     };
@@ -712,14 +710,8 @@ function openLibraryModal(category, onSelect) {
     let actualCategory = isPreloaded ? 'sintonia' : category;
     let items = [];
     if (isPreloaded) {
-        const preloaded = (sharedLibrary && sharedLibrary.sintonias_precargadas) ? sharedLibrary.sintonias_precargadas : [];
-        const baseDefaults = defaultLibrary.sintonias || [];
-        items = [...preloaded];
-        baseDefaults.forEach(def => {
-            if (!items.some(it => it.title === def.title)) {
-                items.push(def);
-            }
-        });
+        // En Sintonías precargadas SOLO mostramos las que suben y asignan los profesores
+        items = (sharedLibrary && sharedLibrary.sintonias_precargadas) ? [...sharedLibrary.sintonias_precargadas] : [];
     } else {
         const library = sharedLibrary || defaultLibrary;
         items = library[category] || [];
@@ -729,7 +721,19 @@ function openLibraryModal(category, onSelect) {
     }
     
     if (items.length === 0) {
-        list.innerHTML = '<li style="color:#aaa; padding:10px;">No hay audios en esta categoría.</li>';
+        if (isPreloaded) {
+            list.innerHTML = `
+                <div style="text-align:center; padding:35px 20px; color:#64748b; background:#f8fafc; border-radius:10px; border:1px dashed #cbd5e1; margin:10px 0;">
+                    <i class="fa-solid fa-music" style="font-size:32px; color:#cbd5e1; margin-bottom:10px; display:block;"></i>
+                    <p style="font-size:15px; font-weight:600; color:#334155; margin:0 0 6px 0;">(Aún no hay sintonías precargadas)</p>
+                    <p style="font-size:12px; color:#64748b; margin:0; line-height:1.4;">
+                        Los profesores pueden subir melodías desde el botón <b>«Subir»</b> y marcarlas como sintonía precargada para que aparezcan aquí disponibles para todos.
+                    </p>
+                </div>
+            `;
+        } else {
+            list.innerHTML = '<li style="color:#aaa; padding:10px;">No hay audios en esta categoría.</li>';
+        }
     } else {
         items.forEach(item => {
             const li = document.createElement('li');

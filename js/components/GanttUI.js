@@ -43,9 +43,10 @@ export class GanttUI {
             return;
         }
 
-        // Dividir bloques en pistas (Principal vs Fondo)
-        const mainTrack = [];
-        const bgTrack = [];
+        // 3 PISTAS DEDICADAS: Voz, Sintonías, Música de fondo
+        const vozTrack = [];
+        const sintoniaTrack = [];
+        const musicaTrack = [];
         let maxTime = 0;
 
         // Calcular primero la duración máxima real de los bloques no-fullProgram
@@ -79,10 +80,14 @@ export class GanttUI {
                 durSec
             };
 
-            if (b.isFullProgram || b.isBackground || (b.type === 'audio' && b.category === 'musica')) {
-                bgTrack.push(blockData);
-            } else {
-                mainTrack.push(blockData);
+            if (b.type === 'text') {
+                vozTrack.push(blockData);
+            } else if (b.type === 'audio') {
+                if (b.isFullProgram || b.isBackground || b.category === 'musica') {
+                    musicaTrack.push(blockData);
+                } else {
+                    sintoniaTrack.push(blockData);
+                }
             }
         });
 
@@ -122,25 +127,35 @@ export class GanttUI {
         }
         ganttCanvas.appendChild(timeline);
 
-        // Pista 1: Voz y Efectos (Principal)
-        const mainLanes = this.calculateLanes(mainTrack);
+        // Pista 1: Voz
+        const vozLanes = this.calculateLanes(vozTrack);
         const track1 = document.createElement('div');
-        track1.className = 'gantt-track main-track';
-        track1.innerHTML = '<div class="track-label"><i class="fa-solid fa-microphone"></i> Voz y Efectos</div>';
-        const h1 = Math.max(80, 35 + (mainLanes * 50) + 15);
+        track1.className = 'gantt-track voz-track';
+        track1.innerHTML = '<div class="track-label"><i class="fa-solid fa-microphone"></i> Voz</div>';
+        const h1 = Math.max(75, 35 + (vozLanes * 50) + 15);
         track1.style.height = `${h1}px`;
-        mainTrack.forEach(b => this.createBar(b, track1, program));
+        vozTrack.forEach(b => this.createBar(b, track1, program));
         ganttCanvas.appendChild(track1);
 
-        // Pista 2: Música y Fondos (Debajo de todo)
-        const bgLanes = this.calculateLanes(bgTrack);
+        // Pista 2: Sintonías
+        const sintoniaLanes = this.calculateLanes(sintoniaTrack);
         const track2 = document.createElement('div');
-        track2.className = 'gantt-track bg-track';
-        track2.innerHTML = '<div class="track-label"><i class="fa-solid fa-music"></i> Música de Fondo</div>';
-        const h2 = Math.max(80, 35 + (bgLanes * 50) + 15);
+        track2.className = 'gantt-track sintonia-track';
+        track2.innerHTML = '<div class="track-label"><i class="fa-solid fa-music"></i> Sintonías</div>';
+        const h2 = Math.max(75, 35 + (sintoniaLanes * 50) + 15);
         track2.style.height = `${h2}px`;
-        bgTrack.forEach(b => this.createBar(b, track2, program));
+        sintoniaTrack.forEach(b => this.createBar(b, track2, program));
         ganttCanvas.appendChild(track2);
+
+        // Pista 3: Música de fondo
+        const musicaLanes = this.calculateLanes(musicaTrack);
+        const track3 = document.createElement('div');
+        track3.className = 'gantt-track musica-track';
+        track3.innerHTML = '<div class="track-label"><i class="fa-solid fa-headphones"></i> Música de fondo</div>';
+        const h3 = Math.max(75, 35 + (musicaLanes * 50) + 15);
+        track3.style.height = `${h3}px`;
+        musicaTrack.forEach(b => this.createBar(b, track3, program));
+        ganttCanvas.appendChild(track3);
 
         scrollWrapper.appendChild(ganttCanvas);
         this.container.appendChild(scrollWrapper);
