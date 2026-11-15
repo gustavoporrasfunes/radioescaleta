@@ -723,14 +723,17 @@ function renderEditorSoundboard() {
     const pads = currentProgram.soundboard || DEFAULT_SOUNDBOARD;
 
     pads.forEach((pad, index) => {
+        const assignedKey = (pad.key && !/^[1-6]$/.test(pad.key)) ? pad.key : `F${index + 1}`;
+        pad.key = assignedKey;
+
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'editor-soundboard-pad';
         btn.style.setProperty('--pad-color', pad.color || '#ef4444');
-        btn.title = `Botón ${index + 1} (Tecla: ${pad.key}): ${pad.name}. Clic para configurar`;
+        btn.title = `Botón ${index + 1} (Tecla: ${assignedKey}): ${pad.name}. Clic para configurar`;
 
         btn.innerHTML = `
-            <div class="pad-shortcut">${pad.key || (index + 1)}</div>
+            <div class="pad-shortcut">${assignedKey}</div>
             <div class="pad-icon"><i class="fa-solid ${pad.icon || 'fa-bolt'}"></i></div>
             <div class="pad-name">${pad.name || 'Sin asignar'}</div>
         `;
@@ -752,6 +755,8 @@ function openConfigureSoundboardModal(pad, index) {
         const isSelected = (pad.name === ef.title) || (pad.url && pad.url.includes(ef.title));
         optionsHtml += `<option value="${ef.url}" data-title="${ef.title}" data-icon="${ef.icon || 'fa-bolt'}" ${isSelected ? 'selected' : ''}>${ef.title}</option>`;
     });
+
+    const currentKey = (pad.key && !/^[1-6]$/.test(pad.key)) ? pad.key : `F${index + 1}`;
 
     Swal.fire({
         title: `<div style="color:${pad.color || '#00acc1'};display:flex;align-items:center;gap:8px;justify-content:center;"><i class="fa-solid fa-bullhorn"></i> Configurar Botón ${index + 1}</div>`,
@@ -775,7 +780,7 @@ function openConfigureSoundboardModal(pad, index) {
                     </div>
                     <div style="flex:1;">
                         <label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:4px;">Tecla rápida:</label>
-                        <input type="text" id="padKeyInput" maxlength="2" value="${pad.key}" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;text-align:center;font-weight:bold;text-transform:uppercase;">
+                        <input type="text" id="padKeyInput" maxlength="3" value="${currentKey}" style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;text-align:center;font-weight:bold;text-transform:uppercase;" placeholder="F${index + 1}">
                     </div>
                 </div>
             </div>
@@ -821,7 +826,7 @@ function openConfigureSoundboardModal(pad, index) {
             const sel = document.getElementById('padSoundSelect');
             const opt = sel.options[sel.selectedIndex];
             const newName = document.getElementById('padNameInput').value.trim() || (opt ? opt.text : `FX ${index + 1}`);
-            const newKey = document.getElementById('padKeyInput').value.trim().toUpperCase() || String(index + 1);
+            const newKey = document.getElementById('padKeyInput').value.trim().toUpperCase() || `F${index + 1}`;
             const newUrl = sel.value;
             const newIcon = opt ? (opt.dataset.icon || 'fa-bolt') : 'fa-bolt';
 

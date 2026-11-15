@@ -351,11 +351,25 @@ export class AudioBoard {
 
     initKeyboardListeners() {
         document.addEventListener('keydown', (e) => {
-            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
             const key = e.key;
+            // Solo responder a números 1-9 para sintonías y música de fondo
+            if (!/^[1-9]$/.test(key)) return;
             const block = this.audioBlocks.find(b => b.keyboardKey === key);
             if (block) {
+                e.preventDefault();
                 const btn = document.getElementById('btn-audio-' + block.id);
+                if (btn) {
+                    btn.style.transform = 'scale(0.92)';
+                    setTimeout(() => {
+                        const p = this.players[block.audioUrl];
+                        if (p && !p.paused) {
+                            btn.style.transform = 'scale(0.95)';
+                        } else {
+                            btn.style.transform = '';
+                        }
+                    }, 120);
+                }
                 this.toggleAudio(block, btn);
             }
         });

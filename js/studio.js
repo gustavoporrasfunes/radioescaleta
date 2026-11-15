@@ -415,17 +415,20 @@ function initSoundboard() {
         : DEFAULT_SOUNDBOARD;
 
     pads.forEach((pad, index) => {
+        const assignedKey = (pad.key && !/^[1-6]$/.test(pad.key)) ? pad.key : `F${index + 1}`;
+        pad.key = assignedKey;
+
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'studio-soundboard-pad';
         btn.id = `studio-pad-${index}`;
         btn.dataset.padIndex = index;
-        btn.dataset.key = (pad.key || String(index + 1)).toUpperCase();
+        btn.dataset.key = assignedKey.toUpperCase();
         btn.style.setProperty('--pad-color', pad.color || '#ef4444');
-        btn.title = `Efecto ${index + 1}: ${pad.name} (Tecla: ${pad.key || (index + 1)})`;
+        btn.title = `Efecto ${index + 1}: ${pad.name} (Tecla: ${assignedKey}). Clic o tecla para activar/desactivar`;
 
         btn.innerHTML = `
-            <span class="pad-key-badge">${pad.key || (index + 1)}</span>
+            <span class="pad-key-badge">${assignedKey}</span>
             <div class="pad-icon"><i class="fa-solid ${pad.icon || 'fa-bolt'}"></i></div>
             <div class="pad-label">${pad.name || 'Efecto ' + (index + 1)}</div>
         `;
@@ -437,17 +440,17 @@ function initSoundboard() {
         container.appendChild(btn);
     });
 
-    // Teclado para activar pads en directo (teclas 1 a 6 o teclas configuradas)
+    // Teclado para activar/desactivar pads en directo (F1 a F6 o teclas asignadas)
     document.addEventListener('keydown', (e) => {
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
         const pressedKey = e.key.toUpperCase();
         const padIndex = pads.findIndex((p, idx) => {
-            const assignedKey = (p.key || String(idx + 1)).toUpperCase();
-            return assignedKey === pressedKey || String(idx + 1) === pressedKey;
+            const assignedKey = (p.key || `F${idx + 1}`).toUpperCase();
+            return assignedKey === pressedKey;
         });
 
         if (padIndex !== -1) {
-            e.preventDefault();
+            e.preventDefault(); // Prevenir ayuda de navegador (F1), buscar (F3), recargar (F5)...
             const btn = document.getElementById(`studio-pad-${padIndex}`);
             if (btn) {
                 btn.classList.add('pressed');
@@ -468,6 +471,15 @@ function triggerSoundboardPad(pad, index, btn) {
     const playerKey = `pad_${index}`;
 
     let player = soundboardPlayers[playerKey];
+
+    // TOGGLE: Si el sonido ya está sonando, detenerlo
+    if (player && !player.paused) {
+        player.pause();
+        player.currentTime = 0;
+        btn.classList.remove('playing');
+        return;
+    }
+
     if (!player) {
         player = new Audio(soundUrl);
         soundboardPlayers[playerKey] = player;
