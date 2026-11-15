@@ -2,7 +2,7 @@
 import { collection, doc, setDoc, getDoc, getDocs, query, where, addDoc, deleteDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore.js";
 import { db } from "./firebaseConfig.js";
 
-const SUPERADMIN_EMAIL = 'bernat13@gmail.com';
+const SUPERADMIN_EMAIL = 'gustavo.porras.funes@gmail.com';
 
 class DbService {
 
@@ -45,10 +45,26 @@ class DbService {
         // Usuario encontrado: actualizar uid y displayName por si ha cambiado
         const userDoc = snap.docs[0];
         const existingData = userDoc.data();
+        const oldUid = existingData.uid;
+
         await updateDoc(doc(db, "users", userDoc.id), {
             uid: user.uid,
             displayName: user.displayName || existingData.displayName
         });
+
+        // Si el UID cambió (por migración a un nuevo proyecto de Firebase),
+        // migramos automáticamente todos los programas que le pertenecían al nuevo UID
+        if (oldUid && oldUid !== user.uid) {
+            try {
+                const oldProgQ = query(collection(db, "programs"), where("ownerId", "==", oldUid));
+                const oldProgSnap = await getDocs(oldProgQ);
+                for (const pDoc of oldProgSnap.docs) {
+                    await updateDoc(doc(db, "programs", pDoc.id), { ownerId: user.uid });
+                }
+            } catch (err) {
+                console.warn("Aviso migrando programas del usuario:", err);
+            }
+        }
 
         return { ...existingData, uid: user.uid, docId: userDoc.id };
     }

@@ -6,13 +6,13 @@ import { getFirestore } from "https://www.gstatic.com/firebasejs/10.4.0/firebase
 
 // TODO: REEMPLAZA ESTO CON LA CONFIGURACIÓN DE TU PROYECTO DE FIREBASE
 const firebaseConfig = {
-  apiKey: "AIzaSyARsRiULw0vYLVCR4L5GXgI6Ny7PaAmv8s",
-  authDomain: "test-13158.firebaseapp.com",
-  projectId: "test-13158",
-  storageBucket: "test-13158.firebasestorage.app",
-  messagingSenderId: "1085067856726",
-  appId: "1:1085067856726:web:fbda437b8789f3edb624f7",
-  measurementId: "G-L9LL0VZZHL"
+  apiKey: "AIzaSyBu7pGwujvM6NvRvTP1kTX6NdEFwj6iAk0",
+  authDomain: "radioescaleta-app.firebaseapp.com",
+  projectId: "radioescaleta-app",
+  storageBucket: "radioescaleta-app.firebasestorage.app",
+  messagingSenderId: "492512427957",
+  appId: "1:492512427957:web:640b63487edcf5120223fc",
+  measurementId: "G-CX7FGF6JVQ"
 };
 
 // Si los valores no se han modificado, no intentamos inicializar para evitar errores en la demostración
