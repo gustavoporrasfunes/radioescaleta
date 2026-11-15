@@ -401,7 +401,9 @@ async function initEditor(user) {
     });
 
     document.getElementById('btnAddAudio').addEventListener('click', () => {
-        escaletaUI.addBlock('audio');
+        openLibraryModal(null, (selected) => {
+            window.addAudioWithTimeCalculation(selected.title, selected.url, selected.category);
+        });
     });
 
     // Categorías de audio en el sidebar
@@ -676,11 +678,71 @@ if (btnConfirmShare) {
     };
 }
 
-closeBtn.onclick = function() {
-    modal.style.display = "none";
+let currentPreviewAudio = null;
+let onSelectAudioCallback = null;
+
+function stopPreviewAudio() {
+    if (currentPreviewAudio) {
+        try {
+            currentPreviewAudio.pause();
+            if (currentPreviewAudio._btn) {
+                currentPreviewAudio._btn.innerHTML = '<i class="fa-solid fa-play"></i>';
+            }
+        } catch (e) {}
+        currentPreviewAudio = null;
+    }
 }
+
+// Cerrar modal de librería de audios
+const closeLibraryModalBtn = document.getElementById('closeLibraryModal');
+if (closeLibraryModalBtn) {
+    closeLibraryModalBtn.onclick = function() {
+        stopPreviewAudio();
+        modal.style.display = "none";
+    };
+}
+if (closeBtn) {
+    closeBtn.onclick = function() {
+        stopPreviewAudio();
+        modal.style.display = "none";
+    };
+}
+
+// Botón volver a categorías dentro del modal
+const modalBtnBack = document.getElementById('modalBtnBack');
+if (modalBtnBack) {
+    modalBtnBack.onclick = function() {
+        openLibraryModal(null, onSelectAudioCallback);
+    };
+}
+
+// Botón crear audio vacío personalizado
+const btnCreateBlankAudio = document.getElementById('btnCreateBlankAudio');
+if (btnCreateBlankAudio) {
+    btnCreateBlankAudio.onclick = function() {
+        stopPreviewAudio();
+        modal.style.display = "none";
+        escaletaUI.addBlock('audio');
+    };
+}
+
+// Opciones del selector de categorías (Sintonías, Música de fondo, Sintonías precargadas)
+document.querySelectorAll('.audio-type-option').forEach(opt => {
+    opt.onclick = function() {
+        renderCategoryAudioList(opt.dataset.cat);
+    };
+});
+
+// Pestañas de categorías dentro del modal
+document.querySelectorAll('.modal-cat-tab').forEach(tab => {
+    tab.onclick = function() {
+        renderCategoryAudioList(tab.dataset.cat);
+    };
+});
+
 window.onclick = function(event) {
     if (event.target == modal) {
+        stopPreviewAudio();
         modal.style.display = "none";
     }
     if (event.target == externalLibsModal) {
@@ -689,37 +751,96 @@ window.onclick = function(event) {
     if (event.target == shareModal) {
         shareModal.style.display = "none";
     }
+};
+
+function openLibraryModal(category = null, onSelect = null) {
+    stopPreviewAudio();
+    if (onSelect) {
+        onSelectAudioCallback = onSelect;
+    } else if (!onSelectAudioCallback) {
+        onSelectAudioCallback = (selected) => {
+            window.addAudioWithTimeCalculation(selected.title, selected.url, selected.category);
+        };
+    }
+
+    const chooserView = document.getElementById('modalCategoryChooser');
+    const listWrapper = document.getElementById('modalAudioListWrapper');
+    const tabsBar = document.getElementById('modalTabsBar');
+    const btnBack = document.getElementById('modalBtnBack');
+    const modalTitle = document.getElementById('modalTitle');
+
+    if (!category) {
+        // Modo selector: Elegir entre Sintonías, Música de fondo o Sintonías precargadas
+        if (chooserView) chooserView.style.display = 'block';
+        if (listWrapper) listWrapper.style.display = 'none';
+        if (tabsBar) tabsBar.style.display = 'none';
+        if (btnBack) btnBack.style.display = 'none';
+        if (modalTitle) modalTitle.innerHTML = '<i class="fa-solid fa-volume-high" style="color: #00acc1;"></i> Añadir Bloque de Audio';
+    } else {
+        // Desplegar directamente la categoría elegida
+        renderCategoryAudioList(category);
+    }
+
+    modal.style.display = "block";
 }
 
-function openLibraryModal(category, onSelect) {
-    const list = document.getElementById('libraryList');
-    list.innerHTML = '';
-    
-    const isPreloaded = (category === 'sintonias_precargadas' || category === 'sintonias-precargadas');
+function renderCategoryAudioList(category) {
+    stopPreviewAudio();
 
-    let titleMap = {
+    const chooserView = document.getElementById('modalCategoryChooser');
+    const listWrapper = document.getElementById('modalAudioListWrapper');
+    const tabsBar = document.getElementById('modalTabsBar');
+    const btnBack = document.getElementById('modalBtnBack');
+    const modalTitle = document.getElementById('modalTitle');
+    const list = document.getElementById('libraryList');
+
+    if (chooserView) chooserView.style.display = 'none';
+    if (listWrapper) listWrapper.style.display = 'block';
+    if (tabsBar) tabsBar.style.display = 'flex';
+    if (btnBack) btnBack.style.display = 'inline-flex';
+
+    // Actualizar tabs activas
+    document.querySelectorAll('.modal-cat-tab').forEach(tab => {
+        if (tab.dataset.cat === category) {
+            tab.classList.add('active');
+        } else {
+            tab.classList.remove('active');
+        }
+    });
+
+    const isPreloaded = (category === 'sintonias_precargadas' || category === 'sintonias-precargadas');
+    const titleMap = {
         'sintonias': 'Sintonías',
         'sintonias_precargadas': 'Sintonías precargadas',
         'sintonias-precargadas': 'Sintonías precargadas',
         'efectos': 'Efectos de Sonido',
         'musica': 'Música de Fondo'
     };
-    
-    document.getElementById('modalTitle').innerText = titleMap[category] || 'Seleccionar Audio';
+    if (modalTitle) {
+        modalTitle.innerHTML = `<i class="fa-solid fa-volume-high" style="color: #00acc1;"></i> ${titleMap[category] || 'Seleccionar Audio'}`;
+    }
 
-    let actualCategory = isPreloaded ? 'sintonia' : category;
+    const actualCategory = (category === 'musica') ? 'musica' : 'sintonia';
+
     let items = [];
     if (isPreloaded) {
-        // En Sintonías precargadas SOLO mostramos las que suben y asignan los profesores
         items = (sharedLibrary && sharedLibrary.sintonias_precargadas) ? [...sharedLibrary.sintonias_precargadas] : [];
     } else {
-        const library = sharedLibrary || defaultLibrary;
-        items = library[category] || [];
-        if (category === 'sintonias' && items.length === 0) {
-            items = defaultLibrary.sintonias || [];
+        const sharedItems = (sharedLibrary && sharedLibrary[category]) ? sharedLibrary[category] : [];
+        const defaultItems = defaultLibrary[category] || [];
+        if (sharedItems.length === 0) {
+            items = [...defaultItems];
+        } else {
+            items = [...sharedItems];
+            defaultItems.forEach(def => {
+                if (!items.some(it => it.title === def.title || it.url === def.url)) {
+                    items.push(def);
+                }
+            });
         }
     }
-    
+
+    list.innerHTML = '';
     if (items.length === 0) {
         if (isPreloaded) {
             list.innerHTML = `
@@ -732,57 +853,72 @@ function openLibraryModal(category, onSelect) {
                 </div>
             `;
         } else {
-            list.innerHTML = '<li style="color:#aaa; padding:10px;">No hay audios en esta categoría.</li>';
+            list.innerHTML = '<li style="color:#aaa; padding:15px; text-align:center;">No hay audios disponibles en esta categoría.</li>';
         }
     } else {
         items.forEach(item => {
             const li = document.createElement('li');
             li.className = 'library-item';
-            
-            const icon = item.icon ? `<i class="fa-solid ${item.icon}" style="margin-right:6px; color:#f06292;"></i>` : '';
-            
+
+            const iconClass = item.icon || ((actualCategory === 'musica') ? 'fa-headphones' : 'fa-music');
+            const iconColor = (actualCategory === 'musica') ? '#0d9488' : '#e11d48';
+            const icon = `<i class="fa-solid ${iconClass}" style="margin-right:10px; color:${iconColor}; width:18px; text-align:center;"></i>`;
+
             const span = document.createElement('span');
+            span.style.cssText = 'font-weight: 500; font-size: 14px; color: #1e293b; display: flex; align-items: center;';
             span.innerHTML = icon + item.title;
-            
+
             // Mini play button
             const btnPlay = document.createElement('button');
+            btnPlay.type = 'button';
             btnPlay.className = 'btn btn-secondary';
-            btnPlay.style.cssText = 'padding:4px 8px; font-size:12px; background:transparent; color:#888; border:1px solid #ddd;';
+            btnPlay.style.cssText = 'padding:6px 10px; font-size:12px; background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; border-radius:6px; cursor:pointer;';
             btnPlay.innerHTML = '<i class="fa-solid fa-play"></i>';
-            let previewAudio = null;
+
             btnPlay.onclick = (e) => {
                 e.stopPropagation();
-                if (previewAudio) { previewAudio.pause(); previewAudio = null; btnPlay.innerHTML = '<i class="fa-solid fa-play"></i>'; return; }
+                if (currentPreviewAudio && currentPreviewAudio._btn === btnPlay) {
+                    stopPreviewAudio();
+                    btnPlay.innerHTML = '<i class="fa-solid fa-play"></i>';
+                    return;
+                }
+                stopPreviewAudio();
                 const playUrl = (item.url || '').replace('res.cloudinary.com', 'res-1.cloudinary.com');
-                previewAudio = new Audio(playUrl);
-                previewAudio.play().catch(err => console.error("Error pre-escucha", err));
+                const audio = new Audio(playUrl);
+                audio._btn = btnPlay;
+                currentPreviewAudio = audio;
                 btnPlay.innerHTML = '<i class="fa-solid fa-stop"></i>';
-                previewAudio.onended = () => { btnPlay.innerHTML = '<i class="fa-solid fa-play"></i>'; previewAudio = null; };
+                audio.play().catch(err => console.error("Error pre-escucha", err));
+                audio.onended = () => {
+                    btnPlay.innerHTML = '<i class="fa-solid fa-play"></i>';
+                    currentPreviewAudio = null;
+                };
             };
-            
-            const btn = document.createElement('button');
-            btn.className = 'btn btn-primary';
-            btn.style.cssText = 'padding:4px 10px; font-size:12px;';
-            btn.innerText = 'Usar';
-            btn.onclick = () => {
-                if (previewAudio) previewAudio.pause();
+
+            const btnUse = document.createElement('button');
+            btnUse.type = 'button';
+            btnUse.className = 'btn btn-primary';
+            btnUse.style.cssText = 'padding:6px 14px; font-size:12px; font-weight:600; border-radius:6px; cursor:pointer;';
+            btnUse.innerText = 'Usar';
+            btnUse.onclick = () => {
+                stopPreviewAudio();
                 const soundUrl = (item.url || '').replace('res.cloudinary.com', 'res-1.cloudinary.com');
-                onSelect({ category: actualCategory, title: item.title, url: soundUrl });
                 modal.style.display = 'none';
+                if (onSelectAudioCallback) {
+                    onSelectAudioCallback({ category: actualCategory, title: item.title, url: soundUrl });
+                }
             };
-            
+
             const actions = document.createElement('div');
-            actions.style.cssText = 'display:flex; gap:5px;';
+            actions.style.cssText = 'display:flex; align-items:center; gap:8px;';
             actions.appendChild(btnPlay);
-            actions.appendChild(btn);
-            
+            actions.appendChild(btnUse);
+
             li.appendChild(span);
             li.appendChild(actions);
             list.appendChild(li);
         });
     }
-
-    modal.style.display = "block";
 }
 
 // ──────────────────────────────────────────────

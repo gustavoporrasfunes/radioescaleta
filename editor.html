@@ -8,7 +8,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Editor - Radioescaleta</title>
     <link rel="stylesheet" href="./css/common.css?v=12">
-    <link rel="stylesheet" href="./css/editor.css?v=15">
+    <link rel="stylesheet" href="./css/editor.css?v=16">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <!-- Librerías Externas -->
@@ -140,12 +140,87 @@
 
     <!-- Modal Librería de Sonidos -->
     <div id="libraryModal" class="modal">
-        <div class="modal-content">
-            <span class="close-modal">&times;</span>
-            <h2 id="modalTitle">Seleccionar Audio</h2>
-            <ul class="library-list" id="libraryList">
-                <!-- Items cargados dinámicamente -->
-            </ul>
+        <div class="modal-content audio-modal-content">
+            <div class="audio-modal-header">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <button id="modalBtnBack" type="button" class="modal-back-btn" style="display: none;" title="Volver a elegir categoría">
+                        <i class="fa-solid fa-arrow-left"></i> Categorías
+                    </button>
+                    <h2 id="modalTitle" style="margin: 0; font-size: 18px; color: #1e293b; display: flex; align-items: center; gap: 8px;">
+                        <i class="fa-solid fa-volume-high" style="color: #00acc1;"></i> Añadir Bloque de Audio
+                    </h2>
+                </div>
+                <span class="close-modal" id="closeLibraryModal">&times;</span>
+            </div>
+
+            <!-- Pestañas de categorías (cuando se exploran audios) -->
+            <div id="modalTabsBar" class="modal-tabs-bar" style="display: none;">
+                <button type="button" class="modal-cat-tab" data-cat="sintonias">
+                    <i class="fa-solid fa-music"></i> Sintonías
+                </button>
+                <button type="button" class="modal-cat-tab" data-cat="musica">
+                    <i class="fa-solid fa-headphones"></i> Música de fondo
+                </button>
+                <button type="button" class="modal-cat-tab" data-cat="sintonias_precargadas">
+                    <i class="fa-solid fa-star"></i> Sintonías precargadas
+                </button>
+            </div>
+
+            <div class="audio-modal-body">
+                <!-- Vista 1: Selector de tipo de audio -->
+                <div id="modalCategoryChooser">
+                    <p style="text-align: center; color: #64748b; font-size: 14px; margin: 0 0 16px 0;">
+                        ¿Qué tipo de audio quieres añadir a tu escaleta?
+                    </p>
+                    <div style="display: flex; flex-direction: column; gap: 12px;">
+                        <div class="audio-type-option" data-cat="sintonias">
+                            <div class="audio-type-icon" style="background: #e0f2fe; color: #0284c7;">
+                                <i class="fa-solid fa-music"></i>
+                            </div>
+                            <div class="audio-type-info">
+                                <div class="audio-type-title">Sintonías</div>
+                                <div class="audio-type-desc">Cabeceras de programa, ráfagas cortas, jingles y transiciones.</div>
+                            </div>
+                            <i class="fa-solid fa-chevron-right audio-type-arrow"></i>
+                        </div>
+
+                        <div class="audio-type-option" data-cat="musica">
+                            <div class="audio-type-icon" style="background: #ccfbf1; color: #0d9488;">
+                                <i class="fa-solid fa-headphones"></i>
+                            </div>
+                            <div class="audio-type-info">
+                                <div class="audio-type-title">Música de fondo</div>
+                                <div class="audio-type-desc">Colchones musicales para hablar por encima, ambientación o pistas completas.</div>
+                            </div>
+                            <i class="fa-solid fa-chevron-right audio-type-arrow"></i>
+                        </div>
+
+                        <div class="audio-type-option" data-cat="sintonias_precargadas">
+                            <div class="audio-type-icon" style="background: #fef3c7; color: #d97706;">
+                                <i class="fa-solid fa-star"></i>
+                            </div>
+                            <div class="audio-type-info">
+                                <div class="audio-type-title">Sintonías precargadas</div>
+                                <div class="audio-type-desc">Melodías compartidas subidas por los profesores para reutilizar en cualquier programa.</div>
+                            </div>
+                            <i class="fa-solid fa-chevron-right audio-type-arrow"></i>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 20px; text-align: center; border-top: 1px dashed #e2e8f0; padding-top: 14px;">
+                        <button type="button" id="btnCreateBlankAudio" style="background: none; border: none; color: #64748b; font-size: 13px; cursor: pointer; text-decoration: underline;">
+                            <i class="fa-solid fa-plus"></i> O crear un bloque de audio vacío personalizado
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Vista 2: Lista de Audios desplegada -->
+                <div id="modalAudioListWrapper" style="display: none;">
+                    <ul class="library-list" id="libraryList">
+                        <!-- Items cargados dinámicamente -->
+                    </ul>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -242,7 +317,7 @@
     <audio id="globalAudioPlayer" style="display:none;"></audio>
 
     <!-- Scripts (Módulos JS) -->
-    <script type="module" src="./js/editor.js?v=51"></script>
+    <script type="module" src="./js/editor.js?v=52"></script>
     <div id="toastMessage" style="visibility: hidden; min-width: 250px; background-color: #333; color: #fff; text-align: center; border-radius: 5px; padding: 16px; position: fixed; z-index: 2000; left: 50%; bottom: 30px; transform: translateX(-50%); opacity: 0; transition: opacity 0.3s, visibility 0.3s;">Guardado correctamente</div>
 </body>
 </html>
