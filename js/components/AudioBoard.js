@@ -8,7 +8,7 @@ export class AudioBoard {
         this.textBlocks = [];
         this.players = {}; // { url: Audio }
         // Per-category volumes
-        this.channelVolumes = { sintonia: 0.8, efectos: 0.8, musica: 0.6, voz: 1.0 };
+        this.channelVolumes = { sintonia: 1.0, efectos: 1.0, musica: 1.0, voz: 1.0 };
         this._masterVol = 1.0;
         this.audioContext = null;
         this.streamDestination = null;
@@ -136,7 +136,7 @@ export class AudioBoard {
                 Object.entries(this.players).forEach(([url, p]) => {
                     const block = this.audioBlocks.find(b => b.audioUrl === url);
                     if (block && p && !p.paused) {
-                        p.volume = (this.channelVolumes[block.category] || 0.8) * v;
+                        p.volume = (this.channelVolumes[block.category] || 1.0) * v;
                     }
                 });
             },
@@ -275,7 +275,7 @@ export class AudioBoard {
             this.audioContext.resume();
         }
 
-        const catVol = this.channelVolumes[block.category] || 0.8;
+        const catVol = this.channelVolumes[block.category] || 1.0;
         player.volume = catVol * this._masterVol;
         player.currentTime = 0;
         player.play().then(() => {

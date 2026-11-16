@@ -4,7 +4,7 @@ import { authService } from './services/authService.js?v=2';
 import { dbService } from './services/dbService.js?v=6';
 import { setupUserProfile } from './utils/profileUI.js?v=12';
 import { Program, DEFAULT_SOUNDBOARD } from './models/Program.js';
-import { AudioBoard } from './components/AudioBoard.js?v=9';
+import { AudioBoard } from './components/AudioBoard.js?v=10';
 
 let currentProgram = new Program();
 let audioBoard = null;
@@ -252,7 +252,7 @@ function initAudioBoard() {
 // ──────────────────────────────────────────────
 //  MESA DE MEZCLA (4 canales categoría)
 // ──────────────────────────────────────────────
-const channelVolumes = { sintonia: 0.8, efectos: 0.8, musica: 0.6, voz: 1.0 };
+const channelVolumes = { sintonia: 1.0, efectos: 1.0, musica: 1.0, voz: 1.0 };
 let masterVol = 1.0;
 
 function initMixer() {
@@ -296,13 +296,13 @@ function initMixer() {
             Object.entries(audioBoard.players).forEach(([url, p]) => {
                 const block = audioBoard.audioBlocks.find(b => b.audioUrl === url);
                 if (block && p && !p.paused) {
-                    p.volume = (channelVolumes[block.category] || 0.8) * v;
+                    p.volume = (channelVolumes[block.category] || 1.0) * v;
                 }
             });
         }
         Object.values(soundboardPlayers).forEach(p => {
             if (p && !p.paused) {
-                p.volume = (channelVolumes.efectos || 0.8) * v;
+                p.volume = (channelVolumes.efectos || 1.0) * v;
             }
         });
         if (window.currentMicGainNode) {
@@ -499,7 +499,7 @@ function triggerSoundboardPad(pad, index, btn) {
         player.src = soundUrl;
     }
 
-    const fxVol = (channelVolumes.efectos !== undefined ? channelVolumes.efectos : 0.8) * masterVol;
+    const fxVol = (channelVolumes.efectos !== undefined ? channelVolumes.efectos : 1.0) * masterVol;
     player.volume = Math.max(0, Math.min(1.0, fxVol));
     player.currentTime = 0;
 
