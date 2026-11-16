@@ -19,14 +19,21 @@ class DbService {
     async loginUser(user) {
         if (!db) return { ...user, role: 'alumno' }; // Modo demo
 
-        const q = query(collection(db, "users"), where("email", "==", user.email));
-        const snap = await getDocs(q);
+        const cleanEmail = (user.email || '').trim().toLowerCase();
+        let q = query(collection(db, "users"), where("email", "==", cleanEmail));
+        let snap = await getDocs(q);
+
+        // Fallback por si en la base de datos se guardó con mayúsculas/minúsculas diferentes
+        if (snap.empty && user.email && user.email !== cleanEmail) {
+            q = query(collection(db, "users"), where("email", "==", user.email.trim()));
+            snap = await getDocs(q);
+        }
 
         // Si es el superadmin y no tiene perfil, lo creamos
-        if (snap.empty && user.email === SUPERADMIN_EMAIL) {
+        if (snap.empty && (user.email === SUPERADMIN_EMAIL || cleanEmail === SUPERADMIN_EMAIL.toLowerCase())) {
             const profileData = {
                 uid: user.uid,
-                email: user.email,
+                email: cleanEmail,
                 displayName: user.displayName || 'Superadmin',
                 role: 'superadmin',
                 centro: 'IES Machado',
@@ -49,7 +56,8 @@ class DbService {
 
         await updateDoc(doc(db, "users", userDoc.id), {
             uid: user.uid,
-            displayName: user.displayName || existingData.displayName
+            displayName: user.displayName || existingData.displayName,
+            email: cleanEmail // Normalizar email
         });
 
         // Si el UID cambió (por migración a un nuevo proyecto de Firebase),
@@ -87,14 +95,19 @@ class DbService {
      */
     async inviteDocente(email, displayName, centro) {
         if (!db) throw new Error("No hay conexión con la base de datos");
+        const cleanEmail = email.trim().toLowerCase();
         // Comprobar si ya existe
-        const q = query(collection(db, "users"), where("email", "==", email));
-        const snap = await getDocs(q);
+        let q = query(collection(db, "users"), where("email", "==", cleanEmail));
+        let snap = await getDocs(q);
+        if (snap.empty && email.trim() !== cleanEmail) {
+            q = query(collection(db, "users"), where("email", "==", email.trim()));
+            snap = await getDocs(q);
+        }
         if (!snap.empty) throw new Error("Este email ya tiene un perfil en el sistema.");
 
         const profile = {
-            email,
-            displayName: displayName || email,
+            email: cleanEmail,
+            displayName: displayName || cleanEmail,
             role: 'docente',
             centro,
             clase: null,
@@ -109,13 +122,18 @@ class DbService {
      */
     async inviteAlumno(email, displayName, centro, clase) {
         if (!db) throw new Error("No hay conexión con la base de datos");
-        const q = query(collection(db, "users"), where("email", "==", email));
-        const snap = await getDocs(q);
+        const cleanEmail = email.trim().toLowerCase();
+        let q = query(collection(db, "users"), where("email", "==", cleanEmail));
+        let snap = await getDocs(q);
+        if (snap.empty && email.trim() !== cleanEmail) {
+            q = query(collection(db, "users"), where("email", "==", email.trim()));
+            snap = await getDocs(q);
+        }
         if (!snap.empty) throw new Error("Este email ya tiene un perfil en el sistema.");
 
         const profile = {
-            email,
-            displayName: displayName || email,
+            email: cleanEmail,
+            displayName: displayName || cleanEmail,
             role: 'alumno',
             centro,
             clase,

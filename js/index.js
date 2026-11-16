@@ -1,5 +1,5 @@
 import { authService } from './services/authService.js?v=2';
-import { dbService } from './services/dbService.js?v=6';
+import { dbService } from './services/dbService.js?v=7';
 
 document.addEventListener('DOMContentLoaded', () => {
     const btnLogin = document.getElementById('btnLogin');

@@ -1,7 +1,7 @@
 // js/index.js
 import { authService } from './services/authService.js?v=2';
 import { setupUserProfile } from './utils/profileUI.js?v=12';
-import { dbService } from './services/dbService.js?v=6';
+import { dbService } from './services/dbService.js?v=7';
 
 document.addEventListener('DOMContentLoaded', () => {
         const btnLogout = document.getElementById('btnLogout');
