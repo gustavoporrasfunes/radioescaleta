@@ -529,6 +529,7 @@ async function initEditor(user) {
                         await dbService.addSound({
                             title: finalTitle,
                             url: result.url,
+                            publicId: result.id || null,
                             category: 'sintonias_precargadas',
                             icon: 'fa-star',
                             order: (sharedLibrary.sintonias_precargadas || []).length
@@ -537,6 +538,7 @@ async function initEditor(user) {
                         sharedLibrary.sintonias_precargadas.unshift({
                             title: finalTitle,
                             url: result.url,
+                            publicId: result.id || null,
                             icon: 'fa-star'
                         });
                     } catch (dbErr) {
