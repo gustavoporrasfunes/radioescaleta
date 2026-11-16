@@ -150,7 +150,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <span class="stat-pill" title="Programas del docente"><i class="fa-solid fa-file-audio" style="color:#f06292;"></i> ${progCount}</span>
                     <span class="stat-pill" title="Alumnos en su centro"><i class="fa-solid fa-users" style="color:#00acc1;"></i> ${misAlumnos.length}</span>
                     ${misAlumnos.length > 0 ? `<span class="stat-pill" title="Programas de alumnos"><i class="fa-solid fa-graduation-cap" style="color:#00acc1;"></i> ${alumnoProgTotal}</span>` : ''}
-                    ${!hasLoggedIn ? '<span class="pending-badge" title="Ya está admitido. Cambiará a activo automáticamente en cuanto entre con su cuenta de Google"><i class="fa-regular fa-clock"></i> Pendiente de 1er acceso</span>' : ''}
+                    ${!hasLoggedIn ? '<span class="pending-badge" title="Ya está admitido. Cambiará a activo automáticamente en cuanto entre por primera vez (con Google o con correo/contraseña)"><i class="fa-regular fa-clock"></i> Pendiente de 1er acceso</span>' : ''}
                 </div>
                 <span class="role-badge" style="background:${roleBg};">${roleLabel}</span>
                 <div class="user-actions">

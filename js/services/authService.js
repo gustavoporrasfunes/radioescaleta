@@ -1,5 +1,13 @@
 // js/services/authService.js
-import { signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-auth.js";
+import { 
+    signInWithPopup, 
+    signOut, 
+    onAuthStateChanged,
+    signInWithEmailAndPassword,
+    createUserWithEmailAndPassword,
+    sendPasswordResetEmail,
+    updateProfile
+} from "https://www.gstatic.com/firebasejs/10.4.0/firebase-auth.js";
 import { auth, provider } from "./firebaseConfig.js";
 
 class AuthService {
@@ -7,7 +15,7 @@ class AuthService {
         this.currentUser = null;
     }
 
-    // Iniciar sesión
+    // Iniciar sesión con Google
     async login() {
         if (!auth) {
             // Modo demo si Firebase no está configurado
@@ -20,7 +28,60 @@ class AuthService {
             this.currentUser = result.user;
             return this.currentUser;
         } catch (error) {
-            console.error("Error al iniciar sesión:", error);
+            console.error("Error al iniciar sesión con Google:", error);
+            throw error;
+        }
+    }
+
+    // Iniciar sesión con Correo y Contraseña
+    async loginWithEmail(email, password) {
+        if (!auth) {
+            this.currentUser = { uid: "demo123", displayName: "Usuario Demo", email: (email || '').trim().toLowerCase() };
+            return this.currentUser;
+        }
+        const cleanEmail = (email || '').trim().toLowerCase();
+        try {
+            const result = await signInWithEmailAndPassword(auth, cleanEmail, password);
+            this.currentUser = result.user;
+            return this.currentUser;
+        } catch (error) {
+            console.error("Error al iniciar sesión con email:", error);
+            throw error;
+        }
+    }
+
+    // Registrar nueva cuenta con Correo y Contraseña (primer acceso de usuario invitado)
+    async registerWithEmail(email, password, displayName = "") {
+        if (!auth) {
+            this.currentUser = { uid: "demo123", displayName: displayName || "Usuario Demo", email: (email || '').trim().toLowerCase() };
+            return this.currentUser;
+        }
+        const cleanEmail = (email || '').trim().toLowerCase();
+        try {
+            const result = await createUserWithEmailAndPassword(auth, cleanEmail, password);
+            this.currentUser = result.user;
+            if (displayName && displayName.trim()) {
+                try {
+                    await updateProfile(result.user, { displayName: displayName.trim() });
+                } catch (e) {
+                    console.warn("No se pudo asignar displayName en Firebase Auth:", e);
+                }
+            }
+            return this.currentUser;
+        } catch (error) {
+            console.error("Error al registrar usuario con email:", error);
+            throw error;
+        }
+    }
+
+    // Enviar correo de restablecimiento de contraseña
+    async resetPassword(email) {
+        if (!auth) return;
+        const cleanEmail = (email || '').trim().toLowerCase();
+        try {
+            await sendPasswordResetEmail(auth, cleanEmail);
+        } catch (error) {
+            console.error("Error al enviar email de recuperación:", error);
             throw error;
         }
     }

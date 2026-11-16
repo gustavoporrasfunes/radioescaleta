@@ -6,8 +6,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Radioescaleta — La herramienta de radio para centros educativos</title>
-    <link rel="stylesheet" href="./css/common.css?v=12?v=3">
-    <link rel="stylesheet" href="./css/index.css?v=3">
+    <link rel="stylesheet" href="./css/common.css?v=13">
+    <link rel="stylesheet" href="./css/index.css?v=4">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
@@ -33,13 +33,49 @@
                     La herramienta profesional de producción radiofónica diseñada para centros educativos.<br>
                     Crea, ensaya y lanza tu programa de radio desde el navegador.
                 </p>
-                <button id="btnLogin" class="btn-hero">
-                    <i class="fa-brands fa-google"></i> Acceder con Google
-                    <span class="beta-badge">BETA</span>
-                </button>
-                <p class="access-note">
-                    <i class="fa-solid fa-lock"></i> Acceso solo por invitación. Contacta con tu docente para solicitar acceso.
-                </p>
+
+                <div class="hero-auth-box">
+                    <!-- Opción 1: Acceso con Google -->
+                    <button id="btnLogin" class="btn-hero btn-google">
+                        <i class="fa-brands fa-google"></i> Acceder con Google
+                        <span class="beta-badge">BETA</span>
+                    </button>
+
+                    <!-- Divisor -->
+                    <div class="auth-separator">
+                        <span>o accede con correo y contraseña</span>
+                    </div>
+
+                    <!-- Opción 2: Formulario Correo y Contraseña -->
+                    <form id="emailLoginForm" class="hero-email-form">
+                        <div class="auth-input-wrapper">
+                            <i class="fa-solid fa-envelope auth-input-icon"></i>
+                            <input type="email" id="loginEmail" placeholder="Correo (ej. tunombre@g.educaand.es)" required autocomplete="username">
+                        </div>
+                        <div class="auth-input-wrapper">
+                            <i class="fa-solid fa-lock auth-input-icon"></i>
+                            <input type="password" id="loginPassword" placeholder="Contraseña" required autocomplete="current-password">
+                        </div>
+                        <button type="submit" id="btnEmailLogin" class="btn-hero-email">
+                            <i class="fa-solid fa-right-to-bracket"></i> Iniciar sesión
+                        </button>
+                    </form>
+
+                    <!-- Acciones secundarias -->
+                    <div class="auth-actions-row">
+                        <button type="button" id="btnShowRegister" class="auth-link-btn">
+                            <i class="fa-solid fa-user-plus"></i> ¿Primer acceso? <strong>Crea tu contraseña</strong>
+                        </button>
+                        <span class="auth-dot">•</span>
+                        <button type="button" id="btnForgotPassword" class="auth-link-btn">
+                            <i class="fa-solid fa-key"></i> ¿Olvidaste tu contraseña?
+                        </button>
+                    </div>
+
+                    <p class="access-note">
+                        <i class="fa-solid fa-lock"></i> Acceso por invitación. Contacta con tu docente para solicitar acceso.
+                    </p>
+                </div>
             </section>
 
             <!-- QUÉ ES -->
@@ -149,8 +185,8 @@
                         <div class="step">
                             <div class="step-number">2</div>
                             <div class="step-content">
-                                <h3>Inicias sesión con Google</h3>
-                                <p>Sin contraseñas ni registros. Un clic y entras directamente al dashboard de tus programas.</p>
+                                <h3>Inicias sesión fácilmente</h3>
+                                <p>Accede con un clic con tu cuenta de Google o con tu correo y contraseña.</p>
                             </div>
                         </div>
                         <div class="step">
@@ -181,10 +217,15 @@
             <!-- CTA FINAL -->
             <section class="cta-final">
                 <h2>¿Tienes acceso?</h2>
-                <p>Si tu docente ya te ha añadido a la plataforma, entra con tu cuenta de Google ahora.</p>
-                <button id="btnLogin2" class="btn-hero">
-                    <i class="fa-brands fa-google"></i> Acceder con Google
-                </button>
+                <p>Si tu docente ya te ha añadido a la plataforma, entra con tu cuenta de Google o con tu correo y contraseña.</p>
+                <div style="display:flex; justify-content:center; gap:14px; flex-wrap:wrap; margin-top:20px;">
+                    <button id="btnLogin2" class="btn-hero">
+                        <i class="fa-brands fa-google"></i> Acceder con Google
+                    </button>
+                    <button id="btnScrollToEmail" class="btn-hero" style="background:#00acc1; color:white;">
+                        <i class="fa-solid fa-envelope"></i> Acceder con Correo
+                    </button>
+                </div>
             </section>
 
         </div>
@@ -214,6 +255,6 @@
         </div>
     </footer>
 
-    <script type="module" src="./js/index.js?v=18"></script>
+    <script type="module" src="./js/index.js?v=20"></script>
 </body>
 </html>

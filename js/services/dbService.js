@@ -91,6 +91,23 @@ class DbService {
     }
 
     /**
+     * Comprobar si un email está pre-autorizado / invitado en la plataforma
+     */
+    async isEmailInvited(email) {
+        if (!db) return true; // Modo demo
+        const cleanEmail = (email || '').trim().toLowerCase();
+        if (cleanEmail === SUPERADMIN_EMAIL.toLowerCase()) return true;
+
+        let q = query(collection(db, "users"), where("email", "==", cleanEmail));
+        let snap = await getDocs(q);
+        if (snap.empty && email && email.trim() !== cleanEmail) {
+            q = query(collection(db, "users"), where("email", "==", email.trim()));
+            snap = await getDocs(q);
+        }
+        return !snap.empty;
+    }
+
+    /**
      * Invitar a un docente (solo superadmin puede llamar esto)
      */
     async inviteDocente(email, displayName, centro) {
