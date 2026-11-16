@@ -146,14 +146,55 @@ body:not(.live-mode) {
 }
 
 .escaleta-block {
-  padding: 15px;
-  border-radius: 25px;
+  padding: 12px 16px;
+  border-radius: 18px;
   color: #333;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  cursor: grab;
+  gap: 12px;
   user-select: none;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.block-drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 38px;
+  cursor: grab;
+  color: rgba(0, 0, 0, 0.4);
+  font-size: 17px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.block-drag-handle:hover {
+  color: #000;
+  background: rgba(0, 0, 0, 0.08);
+  transform: scale(1.15);
+}
+
+.block-drag-handle:active {
+  cursor: grabbing;
+}
+
+.escaleta-block.sortable-ghost {
+  opacity: 0.35;
+  background: #cbd5e1 !important;
+  border: 2px dashed #64748b;
+}
+
+.escaleta-block.sortable-chosen {
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.22);
+  transform: scale(1.02);
+  z-index: 99;
+}
+
+.escaleta-block.sortable-drag {
+  cursor: grabbing !important;
 }
 
 .escaleta-block input[type="text"] {

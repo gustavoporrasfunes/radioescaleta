@@ -10,14 +10,19 @@ export class EscaletaUI {
     }
 
     initSortable() {
-        if (typeof Sortable !== 'undefined') {
+        if (typeof Sortable !== 'undefined' && this.container) {
             this.sortable = Sortable.create(this.container, {
-                animation: 150,
+                animation: 180,
                 scroll: true,
-                scrollSensitivity: 50,
+                scrollSensitivity: 60,
                 scrollSpeed: 15,
                 bubbleScroll: true,
-                handle: '.block-time-container, .speaker-row, .block-drag-handle',
+                handle: '.block-drag-handle, .escaleta-block',
+                filter: 'input, textarea, button, select, label, .text-preview, a',
+                preventOnFilter: false,
+                ghostClass: 'sortable-ghost',
+                chosenClass: 'sortable-chosen',
+                dragClass: 'sortable-drag',
                 onEnd: () => {
                     this.updateOrderFromDOM();
                 }
@@ -138,9 +143,10 @@ export class EscaletaUI {
     }
 
     updateOrderFromDOM() {
-        const orderIds = Array.from(this.container.children).map(el => el.dataset.id);
+        const orderIds = Array.from(this.container.children).map(el => el.dataset.id).filter(Boolean);
         this.program.updateBlockOrder(orderIds);
         this.syncFullProgramDurations();
+        this.render();
         this.notifyUpdate();
     }
 
@@ -164,6 +170,12 @@ export class EscaletaUI {
                 el.classList.add('full-program-block');
             }
             el.dataset.id = block.id;
+
+            // === AGARRE PARA ARRASTRAR (DRAG HANDLE) ===
+            const dragHandle = document.createElement('div');
+            dragHandle.className = 'block-drag-handle';
+            dragHandle.title = 'Arrastrar para reordenar bloque';
+            dragHandle.innerHTML = '<i class="fa-solid fa-grip-vertical"></i>';
 
             // === TIEMPOS (INICIO / FIN / DURACIÓN) ===
             const timeContainer = document.createElement('div');
@@ -560,6 +572,7 @@ export class EscaletaUI {
             btnDelete.addEventListener('click', () => this.removeBlock(block.id));
             actions.appendChild(btnDelete);
 
+            el.appendChild(dragHandle);
             el.appendChild(timeContainer);
             el.appendChild(contentContainer);
             el.appendChild(actions);
