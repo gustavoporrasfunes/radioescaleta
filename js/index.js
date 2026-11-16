@@ -12,11 +12,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnForgotPassword = document.getElementById('btnForgotPassword');
     const loginSection = document.getElementById('loginSection');
 
+    let isRegistering = false;
+
     // 1. Redirigir si ya está autenticado
     authService.onAuthStateChanged(async (user) => {
-        if (user) {
+        if (user && !isRegistering) {
             window.location.href = 'dashboard.html';
-        } else {
+        } else if (!user) {
             if (loginSection) loginSection.classList.remove('hidden');
         }
     });
@@ -172,55 +174,68 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (!formValues) return;
 
-            // Verificar si el email está en la base de datos (invitado o superadmin)
+            isRegistering = true;
             Swal.fire({
-                title: 'Comprobando invitación...',
-                html: 'Verificando autorización en el sistema educativo...',
+                title: 'Creando cuenta...',
+                html: 'Configurando tus credenciales de acceso...',
                 allowOutsideClick: false,
                 didOpen: () => { Swal.showLoading(); }
             });
 
             try {
+                // 1. Crear el usuario en Firebase Authentication primero (no requiere permisos de Firestore)
+                await authService.registerWithEmail(formValues.email, formValues.pass, formValues.name);
+
+                // 2. Ahora que el usuario ya está autenticado (request.auth != null),
+                // comprobamos con total permiso si su email fue previamente invitado por un docente o centro
                 const isInvited = await dbService.isEmailInvited(formValues.email);
+
                 if (!isInvited) {
+                    // Si no estaba invitado, cancelamos y eliminamos el usuario para no dejar rastro
+                    try {
+                        const currentUser = authService.getUser();
+                        if (currentUser && typeof currentUser.delete === 'function') {
+                            await currentUser.delete();
+                        }
+                    } catch (delErr) {
+                        console.warn("Aviso eliminando usuario no invitado:", delErr);
+                    }
+                    await authService.logout();
+                    isRegistering = false;
+
                     Swal.fire({
                         icon: 'warning',
-                        title: 'Correo no invitado',
-                        html: `El correo <b>${formValues.email}</b> aún no ha sido invitado a Radioescaleta.<br><br>Pide a tu docente o al administrador que te registre primero antes de crear tu acceso.`,
+                        title: 'Correo no autorizado',
+                        html: `El correo <b>${formValues.email}</b> no figura en la lista de usuarios invitados por ningún docente o centro educativo.<br><br>Pide a tu docente o al administrador que te dé de alta primero.`,
                         confirmButtonColor: '#f06292'
                     });
                     return;
                 }
 
-                // Proceder a crear el usuario en Firebase Auth
-                Swal.fire({
-                    title: 'Creando cuenta...',
-                    html: 'Configurando tus credenciales de acceso...',
-                    allowOutsideClick: false,
-                    didOpen: () => { Swal.showLoading(); }
-                });
-
-                await authService.registerWithEmail(formValues.email, formValues.pass, formValues.name);
-
+                // 3. Usuario invitado y autorizado: ¡éxito!
                 Swal.fire({
                     icon: 'success',
                     title: '¡Acceso creado con éxito!',
-                    text: 'Iniciando sesión...',
-                    timer: 2000,
+                    text: 'Entrando a Radioescaleta...',
+                    timer: 1500,
                     showConfirmButton: false
+                }).then(() => {
+                    isRegistering = false;
+                    window.location.href = 'dashboard.html';
                 });
 
-                // onAuthStateChanged redirigirá automáticamente
-
             } catch (err) {
+                isRegistering = false;
                 console.error("Error al registrar contraseña:", err);
                 let errHtml = "No se pudo crear la cuenta.";
                 if (err.code === 'auth/email-already-in-use') {
-                    errHtml = `Este correo (<b>${formValues.email}</b>) ya tiene una contraseña configurada.<br><br>Inicia sesión directamente o pulsa en <b>'¿Olvidaste tu contraseña?'</b> si necesitas restablecerla.`;
+                    errHtml = `Este correo (<b>${formValues.email}</b>) ya tiene una contraseña configurada en Radioescaleta.<br><br>Inicia sesión directamente con tu contraseña en la portada o pulsa en <b>'¿Olvidaste tu contraseña?'</b> si necesitas restablecerla.`;
                 } else if (err.code === 'auth/operation-not-allowed') {
                     errHtml = `El acceso con correo y contraseña aún no está activado en Firebase Authentication.<br><br><small>El administrador debe activar el proveedor <b>'Correo electrónico/contraseña'</b> en Firebase Console &gt; Authentication.</small>`;
                 } else if (err.code === 'auth/weak-password') {
-                    errHtml = `La contraseña es demasiado débil. Utiliza al menos 6 caracteres o combina números y letras.`;
+                    errHtml = `La contraseña es demasiado débil. Utiliza al menos 6 caracteres.`;
+                } else if (err.code === 'auth/invalid-email') {
+                    errHtml = `El formato del correo electrónico no es válido.`;
                 } else if (err.message) {
                     errHtml = err.message;
                 }
