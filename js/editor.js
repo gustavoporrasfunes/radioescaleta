@@ -10,20 +10,27 @@ import { downloadPDF } from './utils/pdfGenerator.js?v=2';
 
 let currentProgram = new Program();
 let escaletaUI = null;
-let sharedLibrary = null; // Se carga desde Firestore
 let hasUnsavedChanges = false;
 let isInitialized = false;
 let urlParams = new URLSearchParams(window.location.search);
+let isReadOnly = urlParams.get('readonly') === '1';
+let currentUser = null;
 
 async function saveCurrentProgram() {
+    if (isReadOnly) return null;
     const titleVal = document.getElementById('programTitle')?.value?.trim();
     if (titleVal) {
         currentProgram.title = titleVal;
     }
-    const savedId = await dbService.saveProgram(currentProgram.toFirestore());
+    const firestoreData = currentProgram.toFirestore();
+    const savedId = await dbService.saveProgram(firestoreData);
     if (savedId) {
         currentProgram.id = savedId;
         hasUnsavedChanges = false;
+        try {
+            sessionStorage.setItem(`prog_${savedId}`, JSON.stringify(firestoreData));
+            localStorage.setItem(`prog_${savedId}`, JSON.stringify(firestoreData));
+        } catch (_) {}
         if (!urlParams.has('id') || urlParams.get('id') !== savedId) {
             urlParams.set('id', savedId);
             window.history.replaceState({}, '', `?id=${savedId}`);
@@ -68,50 +75,39 @@ const defaultLibrary = {
     ]
 };
 
-document.addEventListener('DOMContentLoaded', async () => {
-    // 1. Verificar Autenticación (si no está, de vuelta a index)
-    authService.onAuthStateChanged(async (user) => {
-        if (!user) {
-            window.location.href = 'index.html';
-            return;
-        }
-        await dbService.saveUser(user);
-        const profile = await dbService.getUserProfile(user.uid) || {};
-        setupUserProfile(user, profile);
-        // Cargar librería compartida desde Firestore
-        sharedLibrary = { sintonias: [], sintonias_precargadas: [], efectos: [], musica: [] };
-        try {
-            const sounds = await dbService.getSoundLibrary();
-            if (sounds && sounds.length > 0) {
-                sounds.forEach(s => {
-                    const cat = (s.category === 'sintonias-precargadas' || s.category === 'sintonias_precargadas')
-                        ? 'sintonias_precargadas'
-                        : s.category;
-                    if (!sharedLibrary[cat]) sharedLibrary[cat] = [];
-                    sharedLibrary[cat].push({ 
-                        title: s.title, 
-                        url: s.url, 
-                        publicId: s.publicId || null,
-                        icon: s.icon || 'fa-star',
-                        docId: s.docId || s.id 
-                    });
-                });
-            }
-        } catch(e) {
-            console.warn('No se pudo cargar la librería de Firestore, usando local:', e);
-            sharedLibrary = {
-                sintonias: [...defaultLibrary.sintonias],
-                sintonias_precargadas: [],
-                efectos: [...defaultLibrary.efectos],
-                musica: [...defaultLibrary.musica]
-            };
-        }
-        await initEditor(user);
-    });
-});
+let sharedLibrary = {
+    sintonias: [...defaultLibrary.sintonias],
+    sintonias_precargadas: [],
+    efectos: [...defaultLibrary.efectos],
+    musica: [...defaultLibrary.musica]
+};
 
-async function initEditor(user) {
-    // 2. Inicializar Componentes
+function loadSharedLibrary() {
+    dbService.getSoundLibrary().then(sounds => {
+        if (sounds && sounds.length > 0) {
+            const newLib = { sintonias: [], sintonias_precargadas: [], efectos: [], musica: [] };
+            sounds.forEach(s => {
+                const cat = (s.category === 'sintonias-precargadas' || s.category === 'sintonias_precargadas')
+                    ? 'sintonias_precargadas'
+                    : s.category;
+                if (!newLib[cat]) newLib[cat] = [];
+                newLib[cat].push({ 
+                    title: s.title, 
+                    url: s.url, 
+                    publicId: s.publicId || null,
+                    icon: s.icon || 'fa-star',
+                    docId: s.docId || s.id 
+                });
+            });
+            sharedLibrary = newLib;
+        }
+    }).catch(e => {
+        console.warn('Aviso cargando librería en segundo plano:', e);
+    });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    // 1. Inicializar Componentes
     let onEscaletaUpdate;
     const ganttUI = new GanttUI('ganttContainer', () => {
         if (onEscaletaUpdate) onEscaletaUpdate();
@@ -145,14 +141,12 @@ async function initEditor(user) {
 
     escaletaUI = new EscaletaUI('escaletaList', currentProgram, onEscaletaUpdate);
 
-
-
-
     // === MODO SÓLO LECTURA ===
     urlParams = new URLSearchParams(window.location.search);
-    let isReadOnly = urlParams.get('readonly') === '1';
+    isReadOnly = urlParams.get('readonly') === '1';
 
     window.applyReadOnlyMode = function(roleName = "Lector") {
+        isReadOnly = true;
         document.title = `👁️ ${roleName} — ` + document.title;
 
         // Quitar banner anterior si hay
@@ -201,32 +195,91 @@ async function initEditor(user) {
         ganttUI.render(currentProgram);
     });
 
-    // 3. Cargar programa si hay ID en la URL
+    // 2. CARGA INSTANTÁNEA DESDE CACHÉ (0ms perceived load)
     const programId = urlParams.get('id');
+    let loadedFromCache = false;
 
     if (programId) {
-        const data = await dbService.getProgramById(programId);
-        if (data) {
-            currentProgram = Program.fromFirestore(data);
-            escaletaUI.program = currentProgram; // Reasignar
-            document.getElementById('programTitle').value = currentProgram.title;
-            
-            // Check permissions based on authenticated user
-            if (user && currentProgram.ownerId !== user.uid) {
-                if (currentProgram.collaborators && currentProgram.collaborators[user.uid] === 'lector') {
-                    window.applyReadOnlyMode("Lector");
-                }
+        try {
+            const cachedStr = sessionStorage.getItem(`prog_${programId}`) || localStorage.getItem(`prog_${programId}`);
+            if (cachedStr) {
+                const cachedData = JSON.parse(cachedStr);
+                currentProgram = Program.fromFirestore(cachedData);
+                escaletaUI.program = currentProgram;
+                const pt = document.getElementById('programTitle');
+                if (pt) pt.value = currentProgram.title;
+                escaletaUI.render();
+                onEscaletaUpdate();
+                loadedFromCache = true;
+                console.log("⚡ Escaleta renderizada instantáneamente desde caché.");
             }
+        } catch (cacheErr) {
+            console.warn("Aviso leyendo caché local:", cacheErr);
         }
     } else {
-        currentProgram.ownerId = user.uid;
+        // Programa nuevo en blanco
+        escaletaUI.render();
+        onEscaletaUpdate();
     }
 
-    escaletaUI.render();
-    onEscaletaUpdate();
+    // 3. Carga no bloqueante de la librería compartida en segundo plano
+    loadSharedLibrary();
 
-    isInitialized = true;
-    hasUnsavedChanges = false;
+    // 4. Verificación de Autenticación y Sincronización en segundo plano con Firebase
+    authService.onAuthStateChanged(async (user) => {
+        if (!user) {
+            window.location.href = 'index.html';
+            return;
+        }
+        currentUser = user;
+
+        // Actualizar datos de usuario en segundo plano (fire-and-forget)
+        dbService.saveUser(user).catch(() => {});
+
+        // Peticiones paralelas a Firebase (perfil + datos frescos de escaleta)
+        const [profile, serverData] = await Promise.all([
+            dbService.getUserProfile(user.uid).catch(() => null),
+            programId ? dbService.getProgramById(programId).catch(() => null) : Promise.resolve(null)
+        ]);
+
+        if (profile) {
+            setupUserProfile(user, profile);
+        }
+
+        if (programId) {
+            if (serverData) {
+                // Guardar en caché para próximas aperturas
+                try {
+                    sessionStorage.setItem(`prog_${programId}`, JSON.stringify(serverData));
+                    localStorage.setItem(`prog_${programId}`, JSON.stringify(serverData));
+                } catch (_) {}
+
+                // Comprobar permisos de colaborador
+                if (serverData.ownerId !== user.uid) {
+                    if (serverData.collaborators && serverData.collaborators[user.uid] === 'lector') {
+                        window.applyReadOnlyMode("Lector");
+                    }
+                }
+
+                // Si no hay cambios locales sin guardar y los datos difieren o no se cargó de caché:
+                if (!hasUnsavedChanges) {
+                    currentProgram = Program.fromFirestore(serverData);
+                    escaletaUI.program = currentProgram;
+                    const pt = document.getElementById('programTitle');
+                    if (pt) pt.value = currentProgram.title;
+                    escaletaUI.render();
+                    onEscaletaUpdate();
+                }
+            } else if (!loadedFromCache) {
+                Swal.fire('Error', 'No se pudo cargar el programa solicitado.', 'error');
+            }
+        } else {
+            currentProgram.ownerId = user.uid;
+        }
+
+        isInitialized = true;
+        hasUnsavedChanges = false;
+    });
 
     // 4. Configurar Event Listeners UI
     const titleInput = document.getElementById('programTitle');
@@ -1138,4 +1191,4 @@ window.addAudioWithTimeCalculation = function(title, rawUrl, category) {
             setTimeout(() => addAndResolve(0), 4000);
         });
     });
-};
+});

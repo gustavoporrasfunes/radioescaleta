@@ -13,34 +13,60 @@ let audioBoard = null;
 //  BOOTSTRAP
 // ──────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const programId = urlParams.get('id');
+
+    if (!programId) {
+        Swal.fire('Sin programa', 'Abre el estudio desde el Editor, con un programa cargado.', 'warning')
+            .then(() => window.location.href = 'dashboard.html');
+        return;
+    }
+
+    let loadedFromCache = false;
+    try {
+        const cachedStr = sessionStorage.getItem(`prog_${programId}`) || localStorage.getItem(`prog_${programId}`);
+        if (cachedStr) {
+            const cachedData = JSON.parse(cachedStr);
+            currentProgram = Program.fromFirestore(cachedData);
+            document.getElementById('programTitle').innerText = currentProgram.title;
+            document.title = `🎙️ ${currentProgram.title} — Estudio`;
+            initStudio();
+            loadedFromCache = true;
+            console.log("⚡ Estudio renderizado instantáneamente desde caché");
+        }
+    } catch (_) {}
+
     authService.onAuthStateChanged(async (user) => {
         if (!user) { window.location.href = 'index.html'; return; }
 
-        await dbService.saveUser(user);
-        const profile = await dbService.getUserProfile(user.uid) || {};
-        setupUserProfile(user, profile);
+        dbService.saveUser(user).catch(() => {});
 
-        const urlParams = new URLSearchParams(window.location.search);
-        const programId = urlParams.get('id');
+        const [profile, data] = await Promise.all([
+            dbService.getUserProfile(user.uid).catch(() => null),
+            dbService.getProgramById(programId).catch(() => null)
+        ]);
 
-        if (!programId) {
-            Swal.fire('Sin programa', 'Abre el estudio desde el Editor, con un programa cargado.', 'warning')
-                .then(() => window.location.href = 'dashboard.html');
-            return;
-        }
+        if (profile) setupUserProfile(user, profile);
 
-        const data = await dbService.getProgramById(programId);
-        if (!data) {
+        if (!data && !loadedFromCache) {
             Swal.fire('Error', 'No se encontró el programa.', 'error')
                 .then(() => window.location.href = 'dashboard.html');
             return;
         }
 
-        currentProgram = Program.fromFirestore(data);
-        document.getElementById('programTitle').innerText = currentProgram.title;
-        document.title = `🎙️ ${currentProgram.title} — Estudio`;
+        if (data) {
+            try {
+                sessionStorage.setItem(`prog_${programId}`, JSON.stringify(data));
+                localStorage.setItem(`prog_${programId}`, JSON.stringify(data));
+            } catch (_) {}
 
-        initStudio(user);
+            if (!loadedFromCache) {
+                currentProgram = Program.fromFirestore(data);
+                document.getElementById('programTitle').innerText = currentProgram.title;
+                document.title = `🎙️ ${currentProgram.title} — Estudio`;
+                initStudio(user);
+            }
+        }
     });
 });
 

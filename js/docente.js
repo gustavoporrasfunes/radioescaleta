@@ -235,6 +235,10 @@ document.addEventListener('DOMContentLoaded', () => {
                             }
                             loadingDiv.remove();
                             programs.forEach(prog => {
+                                try {
+                                    sessionStorage.setItem(`prog_${prog.id}`, JSON.stringify(prog));
+                                    localStorage.setItem(`prog_${prog.id}`, JSON.stringify(prog));
+                                } catch (_) {}
                                 const date = new Date(prog.createdAt).toLocaleDateString();
                                 const progDiv = document.createElement('div');
                                 progDiv.className = 'program-item';

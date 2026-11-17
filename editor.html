@@ -9,14 +9,18 @@
     <title>Editor - Radioescaleta</title>
     <link rel="stylesheet" href="./css/common.css?v=13">
     <link rel="stylesheet" href="./css/editor.css?v=19">
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <!-- Librerías Externas -->
+    <!-- Librerías Externas (con defer para agilizar el renderizado inmediato) -->
     <!-- SortableJS para Drag and Drop -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js" defer></script>
     <!-- html2pdf para descargar PDF -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11" defer></script>
 </head>
 <body>
     <header>
@@ -83,7 +87,11 @@
             <!-- Escaleta (Lista) -->
             <div class="escaleta-container" id="escaletaContainer" style="border-top-left-radius: 0;">
                 <div id="escaletaList">
-                    <!-- Los bloques irán aquí -->
+                    <!-- Placeholder de carga rápida -->
+                    <div id="escaletaLoadingSkeleton" style="padding: 35px 20px; text-align: center; color: #94a3b8;">
+                        <i class="fa-solid fa-spinner fa-spin" style="font-size: 28px; color: #f06292; margin-bottom: 12px; display: block;"></i>
+                        <span style="font-size: 14px; font-weight: 500;">Cargando escaleta...</span>
+                    </div>
                 </div>
                 
                 <div class="download-btn-container">
@@ -317,7 +325,7 @@
     <audio id="globalAudioPlayer" style="display:none;"></audio>
 
     <!-- Scripts (Módulos JS) -->
-    <script type="module" src="./js/editor.js?v=55"></script>
+    <script type="module" src="./js/editor.js?v=56"></script>
     <div id="toastMessage" style="visibility: hidden; min-width: 250px; background-color: #333; color: #fff; text-align: center; border-radius: 5px; padding: 16px; position: fixed; z-index: 2000; left: 50%; bottom: 30px; transform: translateX(-50%); opacity: 0; transition: opacity 0.3s, visibility 0.3s;">Guardado correctamente</div>
 </body>
 </html>

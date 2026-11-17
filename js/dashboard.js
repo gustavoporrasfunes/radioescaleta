@@ -124,6 +124,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         programs.forEach(program => {
+            try {
+                sessionStorage.setItem(`prog_${program.id}`, JSON.stringify(program));
+                localStorage.setItem(`prog_${program.id}`, JSON.stringify(program));
+            } catch (_) {}
+
             const card = document.createElement('div');
             card.className = 'program-card';
             
@@ -135,12 +140,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 <h3>${program.title} ${badge}</h3>
                 <p><small>Creado: ${date}</small></p>
                 <div class="program-actions" style="display: flex; gap: 8px;">
-                    <a href="editor.html?id=${program.id}" class="btn btn-primary" style="flex:1;"><i class="fa-solid fa-pen"></i> Editar</a>
+                    <a href="editor.html?id=${program.id}" class="btn btn-primary btn-edit-prog" data-id="${program.id}" style="flex:1;"><i class="fa-solid fa-pen"></i> Editar</a>
                     <button class="btn btn-secondary btn-clone" data-id="${program.id}" style="background-color: #2196F3;" title="Clonar programa (como plantilla)"><i class="fa-solid fa-copy"></i></button>
                     ${isOwner ? `<button class="btn btn-secondary btn-delete" data-id="${program.id}" style="background-color: #f44336;" title="Borrar"><i class="fa-solid fa-trash"></i></button>` : ''}
                 </div>
             `;
             programsList.appendChild(card);
+        });
+
+        document.querySelectorAll('.btn-edit-prog').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const id = btn.dataset.id;
+                const p = programs.find(item => item.id === id);
+                if (p) {
+                    try {
+                        sessionStorage.setItem(`prog_${id}`, JSON.stringify(p));
+                        localStorage.setItem(`prog_${id}`, JSON.stringify(p));
+                    } catch (_) {}
+                }
+            });
         });
 
         // Eventos para botones de clonar
