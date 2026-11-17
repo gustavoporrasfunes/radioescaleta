@@ -78,21 +78,33 @@ document.addEventListener('DOMContentLoaded', async () => {
         await dbService.saveUser(user);
         const profile = await dbService.getUserProfile(user.uid) || {};
         setupUserProfile(user, profile);
-        // Cargar librería compartida desde Firestore (con fallback a local)
+        // Cargar librería compartida desde Firestore
+        sharedLibrary = { sintonias: [], sintonias_precargadas: [], efectos: [], musica: [] };
         try {
             const sounds = await dbService.getSoundLibrary();
             if (sounds && sounds.length > 0) {
-                sharedLibrary = { sintonias: [], sintonias_precargadas: [], efectos: [], musica: [] };
                 sounds.forEach(s => {
                     const cat = (s.category === 'sintonias-precargadas' || s.category === 'sintonias_precargadas')
                         ? 'sintonias_precargadas'
                         : s.category;
                     if (!sharedLibrary[cat]) sharedLibrary[cat] = [];
-                    sharedLibrary[cat].push({ title: s.title, url: s.url, icon: s.icon || 'fa-star' });
+                    sharedLibrary[cat].push({ 
+                        title: s.title, 
+                        url: s.url, 
+                        publicId: s.publicId || null,
+                        icon: s.icon || 'fa-star',
+                        docId: s.docId || s.id 
+                    });
                 });
             }
         } catch(e) {
             console.warn('No se pudo cargar la librería de Firestore, usando local:', e);
+            sharedLibrary = {
+                sintonias: [...defaultLibrary.sintonias],
+                sintonias_precargadas: [],
+                efectos: [...defaultLibrary.efectos],
+                musica: [...defaultLibrary.musica]
+            };
         }
         await initEditor(user);
     });
@@ -526,23 +538,41 @@ async function initEditor(user) {
                 // 5. Guardar en Firestore sounds si se marcó como Sintonía Precargada
                 if (assignPreloaded || chosenCategory === 'sintonias_precargadas') {
                     try {
-                        await dbService.addSound({
+                        if (!sharedLibrary) {
+                            sharedLibrary = { sintonias: [], sintonias_precargadas: [], efectos: [], musica: [] };
+                        }
+                        if (!sharedLibrary.sintonias_precargadas) {
+                            sharedLibrary.sintonias_precargadas = [];
+                        }
+
+                        const orderCount = sharedLibrary.sintonias_precargadas.length;
+                        const newSoundId = await dbService.addSound({
                             title: finalTitle,
                             url: result.url,
                             publicId: result.id || null,
                             category: 'sintonias_precargadas',
                             icon: 'fa-star',
-                            order: (sharedLibrary.sintonias_precargadas || []).length
+                            order: orderCount
                         });
-                        if (!sharedLibrary.sintonias_precargadas) sharedLibrary.sintonias_precargadas = [];
+
                         sharedLibrary.sintonias_precargadas.unshift({
                             title: finalTitle,
                             url: result.url,
                             publicId: result.id || null,
-                            icon: 'fa-star'
+                            icon: 'fa-star',
+                            docId: newSoundId
                         });
+                        console.log("Sintonía precargada registrada con éxito en Firestore:", newSoundId);
                     } catch (dbErr) {
-                        console.warn("No se pudo registrar en Firestore sounds:", dbErr);
+                        console.error("No se pudo registrar en Firestore sounds:", dbErr);
+                        Swal.fire({
+                            toast: true,
+                            position: "bottom",
+                            icon: "warning",
+                            title: "Atención: No se pudo guardar en Sintonías Precargadas: " + (dbErr.message || "Error"),
+                            showConfirmButton: false,
+                            timer: 4000
+                        });
                     }
                 }
 
@@ -828,17 +858,12 @@ function renderCategoryAudioList(category) {
     if (isPreloaded) {
         items = (sharedLibrary && sharedLibrary.sintonias_precargadas) ? [...sharedLibrary.sintonias_precargadas] : [];
     } else {
-        const sharedItems = (sharedLibrary && sharedLibrary[category]) ? sharedLibrary[category] : [];
-        const defaultItems = defaultLibrary[category] || [];
-        if (sharedItems.length === 0) {
-            items = [...defaultItems];
+        if (sharedLibrary && Array.isArray(sharedLibrary[category])) {
+            // Mostramos exactamente los audios de Firestore (respetando los audios borrados por el usuario)
+            items = [...sharedLibrary[category]];
         } else {
-            items = [...sharedItems];
-            defaultItems.forEach(def => {
-                if (!items.some(it => it.title === def.title || it.url === def.url)) {
-                    items.push(def);
-                }
-            });
+            // Solo si no hay Firestore (modo demo / sin conexión), usamos los predeterminados locales
+            items = defaultLibrary[category] ? [...defaultLibrary[category]] : [];
         }
     }
 
