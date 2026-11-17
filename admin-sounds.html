@@ -412,7 +412,7 @@ function editSound(docId) {
 async function deleteSound(docId, title) {
     const r = await Swal.fire({
         title: `¿Eliminar "${title}"?`,
-        text: 'Esta acción no se puede deshacer.',
+        text: 'Esta acción borrará el sonido de la aplicación y su archivo de la nube de forma permanente.',
         icon: 'warning',
         showCancelButton: true,
         confirmButtonText: 'Sí, eliminar',
@@ -420,6 +420,17 @@ async function deleteSound(docId, title) {
         cancelButtonText: 'Cancelar'
     });
     if (!r.isConfirmed) return;
+
+    // Borrado físico automático en Cloudinary
+    const sound = allSounds.find(s => s.docId === docId);
+    if (sound && (sound.publicId || (sound.url && sound.url.includes('cloudinary')))) {
+        try {
+            await cloudinaryService.deleteAudio(sound.publicId || sound.url);
+        } catch (cldErr) {
+            console.warn("Aviso al eliminar de Cloudinary:", cldErr);
+        }
+    }
+
     await dbService.deleteSound(docId);
     allSounds = allSounds.filter(s => s.docId !== docId);
     renderGrid(); updateBadges();
