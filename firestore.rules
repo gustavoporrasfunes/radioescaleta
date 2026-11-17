@@ -25,10 +25,11 @@ service cloud.firestore {
       allow create: if request.auth != null
                     && request.resource.data.ownerId == request.auth.uid;
 
-      // ACTUALIZAR: el dueño o un colaborador con rol "editor"
+      // ACTUALIZAR: el dueño, un colaborador con rol "editor", o superadmin
       allow update: if request.auth != null
                     && (resource.data.ownerId == request.auth.uid
-                        || resource.data.collaborators[request.auth.uid] == 'editor');
+                        || resource.data.collaborators[request.auth.uid] == 'editor'
+                        || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'superadmin');
 
       // BORRAR: solo el dueño
       allow delete: if request.auth != null

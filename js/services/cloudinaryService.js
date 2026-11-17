@@ -64,6 +64,43 @@ class CloudinaryService {
     }
 
     /**
+     * Copia un audio remoto (por ejemplo de la cuenta antigua) a la cuenta propia
+     */
+    async copyRemoteAudio(remoteUrl) {
+        if (!remoteUrl) throw new Error("URL remota requerida");
+
+        // Limpiar URL si venía con res-1.cloudinary.com
+        const cleanUrl = remoteUrl.replace('res-1.cloudinary.com', 'res.cloudinary.com');
+
+        const formData = new FormData();
+        formData.append('file', cleanUrl);
+        formData.append('upload_preset', UPLOAD_PRESET);
+        formData.append('folder', 'radioescaleta');
+        formData.append('resource_type', 'video');
+
+        const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/video/upload`, {
+            method: 'POST',
+            body: formData
+        });
+
+        if (!response.ok) {
+            const errText = await response.text();
+            throw new Error(`Error en Cloudinary (${response.status}): ${errText}`);
+        }
+
+        const data = await response.json();
+        let secureUrl = data.secure_url || '';
+        if (secureUrl.includes('res.cloudinary.com')) {
+            secureUrl = secureUrl.replace('res.cloudinary.com', 'res-1.cloudinary.com');
+        }
+
+        return {
+            publicId: data.public_id,
+            url: secureUrl
+        };
+    }
+
+    /**
      * Extrae el public_id de una URL de Cloudinary si no se dispone del campo directo
      */
     extractPublicId(url) {
