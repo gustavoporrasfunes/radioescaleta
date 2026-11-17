@@ -158,25 +158,8 @@
     <button class="btn btn-secondary" id="btnSeedDefaults" style="background-color: #f44336;">
         <i class="fa-solid fa-rotate"></i> Restablecer sonidos por defecto
     </button>
-    <button class="btn" id="btnMigrateToolbar" style="background-color: #ff9800; color: white; border: none; border-radius: 8px; padding: 8px 14px; cursor: pointer; font-size: 13px; font-weight: bold; display: flex; align-items: center; gap: 8px;">
-        <i class="fa-solid fa-cloud-arrow-up"></i> Migrar a mi Cloudinary
-        <span id="badgeMigrate" style="display:none; background:#d32f2f; color:white; border-radius:10px; font-size:11px; padding:1px 6px; font-weight:bold;">!</span>
-    </button>
     <div class="spacer"></div>
     <span id="totalCount" style="color:#888; font-size:14px;"></span>
-</div>
-
-<div id="migrationAlert" style="display:none; background: #fff8e1; border: 1px solid #ffe082; border-left: 5px solid #ff9800; padding: 14px 20px; margin: 16px 30px 0; border-radius: 8px; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.05);">
-    <div style="display: flex; align-items: center; gap: 14px; color: #b78103;">
-        <i class="fa-solid fa-triangle-exclamation" style="font-size: 24px; color: #f57c00;"></i>
-        <div>
-            <div style="font-weight: bold; font-size: 15px; color: #e65100; margin-bottom: 2px;">Audios de la cuenta anterior detectados</div>
-            <div style="font-size: 13px; color: #5d4037;"><span class="mig-count-msg">Se han localizado audios vinculados a la cuenta antigua (<code style="background: rgba(0,0,0,0.06); padding: 1px 5px; border-radius: 4px;">m30m9j1t</code>).</span> Puedes copiarlos automáticamente a tu cuenta nueva (<code style="background: rgba(0,0,0,0.06); padding: 1px 5px; border-radius: 4px;">etzlhosw</code>) con un solo clic para independizar la app por completo.</div>
-        </div>
-    </div>
-    <button id="btnStartMigration" class="btn" style="background: #ff9800; color: white; border: none; padding: 10px 18px; border-radius: 8px; font-weight: bold; cursor: pointer; white-space: nowrap; margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 13px; box-shadow: 0 2px 4px rgba(0,0,0,0.15); transition: background 0.2s;">
-        <i class="fa-solid fa-arrows-rotate"></i> Migrar todo ahora
-    </button>
 </div>
 
 <div class="tabs">
@@ -231,11 +214,6 @@ import { authService }     from './js/services/authService.js?v=2';
 import { dbService }       from './js/services/dbService.js?v=6';
 import { setupUserProfile } from './js/utils/profileUI.js?v=12';
 import { cloudinaryService } from './js/services/cloudinaryService.js';
-import { db }              from './js/services/firebaseConfig.js';
-import { collection, getDocs, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore.js";
-
-const LEGACY_CLOUD = 'm30m9j1t';
-const CURRENT_CLOUD = 'etzlhosw';
 
 const SUPERADMIN_EMAIL = 'gustavo.porras.funes@gmail.com';
 
@@ -298,7 +276,6 @@ authService.onAuthStateChanged(async (user) => {
     }
     
     await loadSounds();
-    await checkMigrationStatus();
 });
 
 async function loadSounds() {
@@ -328,13 +305,11 @@ function renderGrid() {
     grid.innerHTML = items.map(s => {
         const fname = s.url.split('/').pop().split('?')[0];
         const catClass = (s.category === 'sintonias_precargadas' || s.category === 'sintonias-precargadas') ? 'sintonias_precargadas' : s.category;
-        const isLegacy = (s.url && (s.url.includes(LEGACY_CLOUD) || (s.url.includes('cloudinary.com') && !s.url.includes(CURRENT_CLOUD))));
-        const legacyBadge = isLegacy ? `<span style="background:#fff3e0; color:#e65100; font-size:10px; font-weight:bold; padding:2px 6px; border-radius:4px; border:1px solid #ffe082; margin-left:6px;" title="Alojado en la cuenta antigua de Cloudinary">Antigua</span>` : '';
         return `<div class="sound-card">
             <div class="sound-card-top">
                 <div class="sound-icon ${catClass}"><i class="fa-solid ${s.icon||'fa-music'}"></i></div>
                 <div class="sound-info">
-                    <div class="sound-title" title="${s.title}">${s.title}${legacyBadge}</div>
+                    <div class="sound-title" title="${s.title}">${s.title}</div>
                     <div class="sound-url" title="${s.url}">${fname}</div>
                 </div>
             </div>
@@ -522,265 +497,6 @@ document.getElementById('btnSeedDefaults').addEventListener('click', async () =>
     Swal.close();
     Swal.fire({ icon: 'success', title: 'Hecho', timer: 2000, showConfirmButton: false });
 });
-
-// =============================
-// MIGRACIÓN DE AUDIOS A CLOUDINARY PROPIO
-// =============================
-
-async function scanLegacyAudios() {
-    const soundsToMigrate = [];
-    const programsToMigrate = [];
-
-    if (!db) return { soundsToMigrate, programsToMigrate };
-
-    // 1. Escanear colección 'sounds'
-    try {
-        const soundsSnap = await getDocs(collection(db, "sounds"));
-        soundsSnap.forEach(d => {
-            const data = d.data();
-            const url = data.url || '';
-            if (url.includes(LEGACY_CLOUD) || (url.includes('cloudinary.com') && !url.includes(CURRENT_CLOUD))) {
-                soundsToMigrate.push({
-                    docId: d.id,
-                    title: data.title || 'Sonido',
-                    url: url,
-                    publicId: data.publicId || null,
-                    category: data.category || 'efectos'
-                });
-            }
-        });
-    } catch (e) {
-        console.error("Error escaneando sounds:", e);
-    }
-
-    // 2. Escanear colección 'programs'
-    try {
-        const progsSnap = await getDocs(collection(db, "programs"));
-        progsSnap.forEach(d => {
-            const prog = d.data();
-            const blocks = prog.blocks || [];
-            const blocksToUpdate = [];
-
-            blocks.forEach((b, idx) => {
-                const bUrl = b.audioUrl || '';
-                if (bUrl.includes(LEGACY_CLOUD) || (bUrl.includes('cloudinary.com') && !bUrl.includes(CURRENT_CLOUD))) {
-                    blocksToUpdate.push({
-                        blockIndex: idx,
-                        blockTitle: b.title || `Bloque ${idx + 1}`,
-                        url: bUrl
-                    });
-                }
-            });
-
-            if (blocksToUpdate.length > 0) {
-                programsToMigrate.push({
-                    docId: d.id,
-                    programTitle: prog.title || 'Programa sin título',
-                    blocks: blocks,
-                    blocksToUpdate
-                });
-            }
-        });
-    } catch (e) {
-        console.error("Error escaneando programs:", e);
-    }
-
-    return { soundsToMigrate, programsToMigrate };
-}
-
-async function checkMigrationStatus() {
-    try {
-        const { soundsToMigrate, programsToMigrate } = await scanLegacyAudios();
-        const totalBlocks = programsToMigrate.reduce((acc, p) => acc + p.blocksToUpdate.length, 0);
-        const total = soundsToMigrate.length + totalBlocks;
-
-        const alertEl = document.getElementById('migrationAlert');
-        const badgeEl = document.getElementById('badgeMigrate');
-
-        if (total > 0) {
-            if (alertEl) {
-                alertEl.style.display = 'flex';
-                const msg = alertEl.querySelector('.mig-count-msg');
-                if (msg) {
-                    msg.innerHTML = `Se han localizado <b>${total}</b> archivo(s) o referencia(s) vinculadas a la cuenta antigua (<code>${LEGACY_CLOUD}</code>): <b>${soundsToMigrate.length}</b> en la librería y <b>${totalBlocks}</b> en programas.`;
-                }
-            }
-            if (badgeEl) {
-                badgeEl.style.display = 'inline-block';
-                badgeEl.textContent = total;
-            }
-        } else {
-            if (alertEl) alertEl.style.display = 'none';
-            if (badgeEl) badgeEl.style.display = 'none';
-        }
-    } catch (err) {
-        console.warn("Aviso comprobando estado de migración:", err);
-    }
-}
-
-async function executeMigration() {
-    if (!db) {
-        Swal.fire('Modo Demo', 'No hay conexión activa con la base de datos.', 'info');
-        return;
-    }
-
-    Swal.fire({
-        title: 'Buscando archivos...',
-        text: 'Analizando la base de datos de sonidos y programas...',
-        allowOutsideClick: false,
-        didOpen: () => Swal.showLoading()
-    });
-
-    const { soundsToMigrate, programsToMigrate } = await scanLegacyAudios();
-    const totalProgBlocks = programsToMigrate.reduce((acc, p) => acc + p.blocksToUpdate.length, 0);
-    const totalCount = soundsToMigrate.length + totalProgBlocks;
-
-    if (totalCount === 0) {
-        Swal.fire({
-            icon: 'success',
-            title: '¡Todo al día!',
-            html: `Todos los audios de la aplicación ya están alojados en tu propia cuenta de Cloudinary (<code>${CURRENT_CLOUD}</code>).<br><br>No queda ningún archivo vinculado a la cuenta anterior.`
-        });
-        const alertEl = document.getElementById('migrationAlert');
-        const badgeEl = document.getElementById('badgeMigrate');
-        if (alertEl) alertEl.style.display = 'none';
-        if (badgeEl) badgeEl.style.display = 'none';
-        return;
-    }
-
-    const confirm = await Swal.fire({
-        title: 'Migración a tu Cloudinary',
-        html: `Se han localizado <b>${totalCount}</b> referencia(s) vinculadas a la cuenta anterior:<br><br>
-               <div style="text-align:left; background:#f9f9f9; padding:12px 18px; border-radius:8px; font-size:14px; margin: 0 auto; max-width:320px; line-height:1.6;">
-                 • <b>${soundsToMigrate.length}</b> en la Librería de Sonidos<br>
-                 • <b>${totalProgBlocks}</b> en bloques de <b>${programsToMigrate.length}</b> programa(s)
-               </div><br>
-               Los archivos se copiarán directamente a tu cuenta (<code>${CURRENT_CLOUD}</code>) y se actualizarán automáticamente todos los enlaces en Firebase.<br><br>
-               ¿Deseas comenzar la migración ahora?`,
-        icon: 'question',
-        showCancelButton: true,
-        confirmButtonText: 'Sí, migrar todo ahora',
-        confirmButtonColor: '#ff9800',
-        cancelButtonText: 'Cancelar'
-    });
-
-    if (!confirm.isConfirmed) return;
-
-    Swal.fire({
-        title: 'Migrando audios a tu cuenta...',
-        html: `
-            <p style="font-size:13px; color:#666; margin-bottom:12px;">Copiando a tu cuenta propia de Cloudinary (<code>${CURRENT_CLOUD}</code>)...</p>
-            <div style="background:#e0e0e0; border-radius:8px; height:20px; overflow:hidden; position:relative;">
-                <div id="migBar" style="background:linear-gradient(90deg, #ff9800, #4caf50); width:0%; height:100%; transition:width 0.2s;"></div>
-            </div>
-            <div id="migStatus" style="font-size:13px; font-weight:bold; margin-top:10px; color:#333;">Iniciando...</div>
-            <div id="migSub" style="font-size:11px; color:#888; margin-top:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></div>
-        `,
-        allowOutsideClick: false,
-        allowEscapeKey: false,
-        showConfirmButton: false
-    });
-
-    const setProgress = (current, total, detail) => {
-        const pct = Math.round((current / total) * 100);
-        const bar = document.getElementById('migBar');
-        const stat = document.getElementById('migStatus');
-        const sub = document.getElementById('migSub');
-        if (bar) bar.style.width = pct + '%';
-        if (stat) stat.textContent = `Procesando ${current} de ${total} (${pct}%)...`;
-        if (sub) sub.textContent = detail || '';
-    };
-
-    const urlCache = new Map();
-    let processed = 0;
-    let errors = 0;
-    const errorDetails = [];
-
-    // 1. Migrar sonidos de la librería
-    for (const item of soundsToMigrate) {
-        setProgress(processed + 1, totalCount, `Librería: ${item.title}`);
-        try {
-            let newAudio = urlCache.get(item.url);
-            if (!newAudio) {
-                newAudio = await cloudinaryService.copyRemoteAudio(item.url);
-                urlCache.set(item.url, newAudio);
-            }
-            await updateDoc(doc(db, "sounds", item.docId), {
-                url: newAudio.url,
-                publicId: newAudio.publicId
-            });
-            const localSound = allSounds.find(s => s.docId === item.docId);
-            if (localSound) {
-                localSound.url = newAudio.url;
-                localSound.publicId = newAudio.publicId;
-            }
-        } catch (e) {
-            console.error(`Error migrando sonido ${item.title}:`, e);
-            errors++;
-            errorDetails.push(`${item.title}: ${e.message}`);
-        }
-        processed++;
-    }
-
-    // 2. Migrar bloques de programas
-    for (const prog of programsToMigrate) {
-        let modified = false;
-        for (const bInfo of prog.blocksToUpdate) {
-            setProgress(processed + 1, totalCount, `${prog.programTitle} — ${bInfo.blockTitle}`);
-            try {
-                let newAudio = urlCache.get(bInfo.url);
-                if (!newAudio) {
-                    newAudio = await cloudinaryService.copyRemoteAudio(bInfo.url);
-                    urlCache.set(bInfo.url, newAudio);
-                }
-                const block = prog.blocks[bInfo.blockIndex];
-                if (block) {
-                    block.audioUrl = newAudio.url;
-                    block.publicId = newAudio.publicId;
-                    modified = true;
-                }
-            } catch (e) {
-                console.error(`Error migrando bloque ${bInfo.blockTitle}:`, e);
-                errors++;
-                errorDetails.push(`${prog.programTitle} (${bInfo.blockTitle}): ${e.message}`);
-            }
-            processed++;
-        }
-
-        if (modified) {
-            try {
-                await updateDoc(doc(db, "programs", prog.docId), {
-                    blocks: prog.blocks
-                });
-            } catch (e) {
-                console.error(`Error guardando programa ${prog.programTitle}:`, e);
-                errors++;
-            }
-        }
-    }
-
-    await loadSounds();
-    await checkMigrationStatus();
-
-    if (errors === 0) {
-        Swal.fire({
-            icon: 'success',
-            title: '¡Migración completada con éxito!',
-            html: `Se han copiado <b>${urlCache.size}</b> archivo(s) únicos a tu cuenta propia de Cloudinary (<code>${CURRENT_CLOUD}</code>) y se han actualizado todos los documentos en Firebase.<br><br>¡Tu aplicación ya es totalmente independiente!`
-        });
-    } else {
-        Swal.fire({
-            icon: 'warning',
-            title: 'Migración finalizada con advertencias',
-            html: `Se migraron con éxito <b>${urlCache.size}</b> archivos únicos.<br><br>
-                   <span style="color:#d32f2f;">Hubo ${errors} archivo(s) que no se pudieron copiar (posiblemente fueron eliminados en origen):</span><br>
-                   <small style="color:#666; text-align:left; display:inline-block; margin-top:8px;">${errorDetails.slice(0, 3).join('<br>')}</small>`
-        });
-    }
-}
-
-document.getElementById('btnMigrateToolbar').addEventListener('click', () => executeMigration());
-document.getElementById('btnStartMigration').addEventListener('click', () => executeMigration());
 </script>
 </body>
 </html>
