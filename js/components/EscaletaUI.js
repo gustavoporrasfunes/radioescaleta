@@ -320,6 +320,22 @@ export class EscaletaUI {
 
                 speakerRow.appendChild(speakerBadge);
                 speakerRow.appendChild(speakerInput);
+
+                // Botón directo para dictar texto en este bloque
+                const dictateBtn = document.createElement('button');
+                dictateBtn.type = 'button';
+                dictateBtn.className = 'btn-quick-dictate';
+                dictateBtn.title = 'Dictar texto por voz para este bloque';
+                dictateBtn.innerHTML = '<i class="fa-solid fa-microphone"></i> Dictar por voz';
+                dictateBtn.style.cssText = 'padding:3px 10px; font-size:11px; font-weight:600; color:#0284c7; background:#f0f9ff; border:1px solid #bae6fd; border-radius:12px; cursor:pointer; display:inline-flex; align-items:center; gap:5px; transition:all 0.2s; flex-shrink:0;';
+                dictateBtn.onmouseover = () => { dictateBtn.style.background = '#e0f2fe'; dictateBtn.style.borderColor = '#0284c7'; };
+                dictateBtn.onmouseout = () => { dictateBtn.style.background = '#f0f9ff'; dictateBtn.style.borderColor = '#bae6fd'; };
+                dictateBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.openTextEditorModal(block, endInput, updateDurationDisplay, true);
+                });
+                speakerRow.appendChild(dictateBtn);
+
                 contentContainer.appendChild(speakerRow);
 
                 // 2) PREVIEW Y POPUP DE REDACCIÓN DEL GUIÓN
@@ -351,79 +367,9 @@ export class EscaletaUI {
                     textPreview.style.boxShadow = 'none';
                 });
 
-                // Modal de redacción completa con cálculo exacto
+                // Abrir editor modal
                 textPreview.addEventListener('click', () => {
-                    if (document.body.classList.contains('live-mode') || document.title.includes('👁️')) return;
-                    
-                    const wordsInit = (block.content || "").trim().split(/\s+/).filter(w => w.length > 0).length;
-                    const secInit = Math.max(2, Math.round((wordsInit / 130) * 60));
-
-                    Swal.fire({
-                        title: '<div style="display:flex;align-items:center;gap:10px;justify-content:center;color:#0284c7;"><i class="fa-solid fa-file-lines"></i> Redactar Guión de Radio</div>',
-                        html: `
-                            <div style="text-align:left;display:flex;flex-direction:column;gap:12px;margin-top:10px;">
-                                <div>
-                                    <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:4px;">
-                                        <i class="fa-solid fa-microphone-lines" style="color:#0284c7;"></i> Locutor/a responsable (alumno/a):
-                                    </label>
-                                    <input type="text" id="swalSpeaker" value="${(block.speaker || '').replace(/"/g, '&quot;')}" placeholder="Nombre del alumno/a (ej. Laura García)" style="width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid #cbd5e1;border-radius:6px;font-size:14px;">
-                                </div>
-                                <div>
-                                    <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:4px;">
-                                        <i class="fa-solid fa-align-left" style="color:#0284c7;"></i> Texto a leer en antena:
-                                    </label>
-                                    <textarea id="swalContent" rows="12" placeholder="Escribe aquí el guión que se leerá en antena..." style="width:100%;box-sizing:border-box;padding:12px;border:1px solid #cbd5e1;border-radius:6px;font-size:14px;line-height:1.6;font-family:inherit;resize:vertical;">${(block.content || '').replace(/</g, '&lt;')}</textarea>
-                                </div>
-                                <div style="display:flex;justify-content:space-between;align-items:center;background:#f8fafc;padding:10px 14px;border-radius:8px;border:1px solid #e2e8f0;">
-                                    <div id="swalCounter" style="font-size:13px;color:#475569;">
-                                        <b>${wordsInit} palabras</b> — Tiempo estimado: <b style="color:#0284c7;">${secondsToTime(secInit)}</b> (a 130 palabras/min)
-                                    </div>
-                                </div>
-                                <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#334155;cursor:pointer;margin-top:2px;">
-                                    <input type="checkbox" id="swalSyncDuration" checked style="width:16px;height:16px;cursor:pointer;">
-                                    <span><b>Ajustar automáticamente</b> el tiempo fin del bloque según la lectura estimada</span>
-                                </label>
-                            </div>
-                        `,
-                        width: '780px',
-                        showCancelButton: true,
-                        confirmButtonText: '<i class="fa-solid fa-check"></i> Guardar Guión',
-                        cancelButtonText: 'Cancelar',
-                        confirmButtonColor: '#0284c7',
-                        didOpen: () => {
-                            const textarea = document.getElementById('swalContent');
-                            const counter = document.getElementById('swalCounter');
-                            const updateCount = () => {
-                                const w = textarea.value.trim().split(/\s+/).filter(x => x.length > 0).length;
-                                const s = Math.max(2, Math.round((w / 130) * 60));
-                                counter.innerHTML = `<b>${w} palabras</b> — Tiempo estimado: <b style="color:#0284c7;">${secondsToTime(s)}</b> (a 130 palabras/min)`;
-                            };
-                            textarea.addEventListener('input', updateCount);
-                        }
-                    }).then((result) => {
-                        if (result.isConfirmed) {
-                            const newSpeaker = document.getElementById('swalSpeaker').value.trim();
-                            const newContent = document.getElementById('swalContent').value;
-                            const syncDur = document.getElementById('swalSyncDuration').checked;
-
-                            block.speaker = newSpeaker;
-                            block.content = newContent;
-
-                            const words = newContent.trim().split(/\s+/).filter(w => w.length > 0).length;
-                            const sec = Math.max(2, Math.round((words / 130) * 60));
-
-                            if (syncDur) {
-                                const newEnd = secondsToTime(timeToSeconds(block.startTime) + sec);
-                                block.endTime = newEnd;
-                                endInput.value = newEnd;
-                                updateDurationDisplay();
-                            }
-
-                            this.syncFullProgramDurations();
-                            this.render(); // Re-renderizar completo para actualizar input de locutor y tiempos
-                            this.notifyUpdate();
-                        }
-                    });
+                    this.openTextEditorModal(block, endInput, updateDurationDisplay, false);
                 });
                 
                 contentContainer.appendChild(textPreview);
@@ -499,6 +445,18 @@ export class EscaletaUI {
             actions.className = 'block-actions';
             
             if (block.type === 'text') {
+                const btnDictateAction = document.createElement('button');
+                btnDictateAction.innerHTML = '<i class="fa-solid fa-microphone"></i>';
+                btnDictateAction.title = "Dictar texto por voz (hablar para escribir)";
+                btnDictateAction.className = 'btn-speak btn-dictate';
+                btnDictateAction.style.marginRight = '5px';
+                btnDictateAction.style.color = '#0284c7';
+                btnDictateAction.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.openTextEditorModal(block, endInput, updateDurationDisplay, true);
+                });
+                actions.appendChild(btnDictateAction);
+
                 const btnSpeak = document.createElement('button');
                 btnSpeak.innerHTML = '<i class="fa-solid fa-volume-high"></i>';
                 btnSpeak.title = "Leer texto en voz alta (TTS)";
@@ -578,6 +536,277 @@ export class EscaletaUI {
             el.appendChild(actions);
 
             this.container.appendChild(el);
+        });
+    }
+
+    openTextEditorModal(block, endInput, updateDurationDisplay, autoStartDictation = false) {
+        if (document.body.classList.contains('live-mode') || document.title.includes('👁️')) return;
+        
+        const wordsInit = (block.content || "").trim().split(/\s+/).filter(w => w.length > 0).length;
+        const secInit = Math.max(2, Math.round((wordsInit / 130) * 60));
+
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const isSpeechSupported = !!SpeechRecognition;
+
+        let recognition = null;
+        let isDictating = false;
+
+        Swal.fire({
+            title: '<div style="display:flex;align-items:center;gap:10px;justify-content:center;color:#0284c7;"><i class="fa-solid fa-file-lines"></i> Redactar Guión de Radio</div>',
+            html: `
+                <div style="text-align:left;display:flex;flex-direction:column;gap:12px;margin-top:10px;">
+                    <div>
+                        <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:4px;">
+                            <i class="fa-solid fa-microphone-lines" style="color:#0284c7;"></i> Locutor/a responsable (alumno/a):
+                        </label>
+                        <input type="text" id="swalSpeaker" value="${(block.speaker || '').replace(/"/g, '&quot;')}" placeholder="Nombre del alumno/a (ej. Laura García)" style="width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid #cbd5e1;border-radius:6px;font-size:14px;">
+                    </div>
+                    <div>
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:6px;">
+                            <label style="font-size:13px;font-weight:600;color:#334155;margin:0;">
+                                <i class="fa-solid fa-align-left" style="color:#0284c7;"></i> Texto a leer en antena:
+                            </label>
+                            <button type="button" id="swalBtnDictate" style="background:#f0fdf4; border:1px solid #86efac; color:#15803d; border-radius:20px; padding:6px 14px; font-size:12px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:6px; transition:all 0.2s; box-shadow:0 1px 2px rgba(0,0,0,0.05);">
+                                <i class="fa-solid fa-microphone"></i> <span>Dictar por voz</span>
+                            </button>
+                        </div>
+
+                        <!-- Estado dinámico de voz -->
+                        <div id="swalVoiceFeedback" style="display:none; margin-bottom:8px; padding:8px 12px; border-radius:6px; font-size:12px; align-items:center; gap:8px;"></div>
+
+                        <textarea id="swalContent" rows="11" placeholder="Escribe aquí el guión o pulsa 'Dictar por voz' para hablar..." style="width:100%;box-sizing:border-box;padding:12px;border:1px solid #cbd5e1;border-radius:6px;font-size:14px;line-height:1.6;font-family:inherit;resize:vertical;">${(block.content || '').replace(/</g, '&lt;')}</textarea>
+                        
+                        <!-- Barra de herramientas para alumnos: puntuación rápida -->
+                        <div style="display:flex;align-items:center;gap:6px;margin-top:6px;flex-wrap:wrap;">
+                            <span style="font-size:11px;color:#64748b;font-weight:600;">Puntuación rápida:</span>
+                            <button type="button" class="btn-swal-punct" data-insert=". " style="padding:3px 8px;font-size:11px;font-weight:600;background:#f8fafc;border:1px solid #cbd5e1;border-radius:4px;cursor:pointer;">. Punto</button>
+                            <button type="button" class="btn-swal-punct" data-insert=", " style="padding:3px 8px;font-size:11px;font-weight:600;background:#f8fafc;border:1px solid #cbd5e1;border-radius:4px;cursor:pointer;">, Coma</button>
+                            <button type="button" class="btn-swal-punct" data-insert="? " style="padding:3px 8px;font-size:11px;font-weight:600;background:#f8fafc;border:1px solid #cbd5e1;border-radius:4px;cursor:pointer;">? Pregunta</button>
+                            <button type="button" class="btn-swal-punct" data-insert="! " style="padding:3px 8px;font-size:11px;font-weight:600;background:#f8fafc;border:1px solid #cbd5e1;border-radius:4px;cursor:pointer;">! Exclamación</button>
+                            <button type="button" class="btn-swal-punct" data-insert="\\n\\n" style="padding:3px 8px;font-size:11px;font-weight:600;background:#f8fafc;border:1px solid #cbd5e1;border-radius:4px;cursor:pointer;">↵ Párrafo</button>
+                        </div>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;background:#f8fafc;padding:10px 14px;border-radius:8px;border:1px solid #e2e8f0;">
+                        <div id="swalCounter" style="font-size:13px;color:#475569;">
+                            <b>${wordsInit} palabras</b> — Tiempo estimado: <b style="color:#0284c7;">${secondsToTime(secInit)}</b> (a 130 palabras/min)
+                        </div>
+                    </div>
+                    <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#334155;cursor:pointer;margin-top:2px;">
+                        <input type="checkbox" id="swalSyncDuration" checked style="width:16px;height:16px;cursor:pointer;">
+                        <span><b>Ajustar automáticamente</b> el tiempo fin del bloque según la lectura estimada</span>
+                    </label>
+                </div>
+            `,
+            width: '780px',
+            showCancelButton: true,
+            confirmButtonText: '<i class="fa-solid fa-check"></i> Guardar Guión',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#0284c7',
+            willClose: () => {
+                isDictating = false;
+                if (recognition) {
+                    try {
+                        recognition.stop();
+                        recognition.abort();
+                    } catch (e) {}
+                }
+            },
+            didOpen: () => {
+                const textarea = document.getElementById('swalContent');
+                const counter = document.getElementById('swalCounter');
+                const btnDictate = document.getElementById('swalBtnDictate');
+                const feedback = document.getElementById('swalVoiceFeedback');
+
+                const updateCount = () => {
+                    const w = textarea.value.trim().split(/\s+/).filter(x => x.length > 0).length;
+                    const s = Math.max(2, Math.round((w / 130) * 60));
+                    counter.innerHTML = `<b>${w} palabras</b> — Tiempo estimado: <b style="color:#0284c7;">${secondsToTime(s)}</b> (a 130 palabras/min)`;
+                };
+                textarea.addEventListener('input', updateCount);
+
+                // Botones de puntuación rápida
+                document.querySelectorAll('.btn-swal-punct').forEach(b => {
+                    b.addEventListener('click', () => {
+                        const rawInsert = b.getAttribute('data-insert');
+                        const insert = rawInsert === '\\n\\n' ? '\n\n' : rawInsert;
+                        const start = textarea.selectionStart ?? textarea.value.length;
+                        const end = textarea.selectionEnd ?? textarea.value.length;
+                        const val = textarea.value;
+                        textarea.value = val.substring(0, start) + insert + val.substring(end);
+                        textarea.selectionStart = textarea.selectionEnd = start + insert.length;
+                        textarea.focus();
+                        updateCount();
+                    });
+                });
+
+                const setNormalButtonUI = () => {
+                    btnDictate.style.background = '#f0fdf4';
+                    btnDictate.style.borderColor = '#86efac';
+                    btnDictate.style.color = '#15803d';
+                    btnDictate.innerHTML = '<i class="fa-solid fa-microphone"></i> <span>Dictar por voz</span>';
+                };
+
+                const setActiveButtonUI = () => {
+                    btnDictate.style.background = '#fee2e2';
+                    btnDictate.style.borderColor = '#ef4444';
+                    btnDictate.style.color = '#b91c1c';
+                    btnDictate.innerHTML = '<i class="fa-solid fa-circle-dot fa-fade" style="color:#ef4444;"></i> <span>Detener dictado</span>';
+                };
+
+                const startVoiceDictation = () => {
+                    if (!isSpeechSupported) {
+                        feedback.style.display = 'flex';
+                        feedback.style.background = '#fffbeb';
+                        feedback.style.border = '1px solid #fde68a';
+                        feedback.style.color = '#b45309';
+                        feedback.innerHTML = '<i class="fa-solid fa-triangle-exclamation" style="color:#d97706;"></i> El dictado por voz requiere Google Chrome, Microsoft Edge o Safari.';
+                        return;
+                    }
+
+                    if (isDictating) {
+                        isDictating = false;
+                        if (recognition) {
+                            try { recognition.stop(); } catch(e) {}
+                        }
+                        setNormalButtonUI();
+                        feedback.style.display = 'flex';
+                        feedback.style.background = '#f0fdf4';
+                        feedback.style.border = '1px solid #bbf7d0';
+                        feedback.style.color = '#166534';
+                        feedback.innerHTML = '<i class="fa-solid fa-circle-check"></i> Dictado finalizado. Puedes revisar el texto o pulsar "Dictar por voz" para continuar.';
+                        return;
+                    }
+
+                    try {
+                        recognition = new SpeechRecognition();
+                        recognition.lang = 'es-ES';
+                        recognition.continuous = true;
+                        recognition.interimResults = true;
+
+                        recognition.onstart = () => {
+                            isDictating = true;
+                            setActiveButtonUI();
+                            feedback.style.display = 'flex';
+                            feedback.style.background = '#fef2f2';
+                            feedback.style.border = '1px dashed #fca5a5';
+                            feedback.style.color = '#991b1b';
+                            feedback.innerHTML = '<i class="fa-solid fa-microphone-lines"></i> <b>Escuchando...</b> Habla claro al micrófono de tu dispositivo';
+                        };
+
+                        recognition.onresult = (event) => {
+                            let interim = '';
+                            for (let i = event.resultIndex; i < event.results.length; ++i) {
+                                const res = event.results[i];
+                                const transcript = res[0].transcript;
+                                if (res.isFinal) {
+                                    let clean = transcript.trim();
+                                    if (clean) {
+                                        // Conversión inteligente de comandos de dictado comunes
+                                        clean = clean
+                                            .replace(/\\bpunto y aparte\\b/gi, '.\\n')
+                                            .replace(/\\bpunto y seguido\\b/gi, '. ')
+                                            .replace(/\\bdos puntos\\b/gi, ': ')
+                                            .replace(/\\bsigno de interrogación\\b/gi, '?')
+                                            .replace(/\\bsigno de exclamación\\b/gi, '!')
+                                            .replace(/\\s+([.,:?!])/g, '$1');
+
+                                        let formatted = clean;
+                                        const currentVal = textarea.value;
+                                        const trimmed = currentVal.trim();
+                                        
+                                        // Capitalizar si es inicio o tras puntuación
+                                        if (!trimmed || trimmed.endsWith('.') || trimmed.endsWith('!') || trimmed.endsWith('?') || trimmed.endsWith('\n')) {
+                                            formatted = formatted.charAt(0).toUpperCase() + formatted.slice(1);
+                                        }
+
+                                        if (currentVal.length > 0 && !currentVal.endsWith(' ') && !currentVal.endsWith('\n')) {
+                                            textarea.value += ' ' + formatted;
+                                        } else {
+                                            textarea.value += formatted;
+                                        }
+                                        updateCount();
+                                        textarea.scrollTop = textarea.scrollHeight;
+                                    }
+                                    feedback.innerHTML = `<span style="color:#15803d;"><i class="fa-solid fa-check"></i> Reconocido: "<b>${clean}</b>"</span>`;
+                                } else {
+                                    interim += transcript;
+                                }
+                            }
+                            if (interim) {
+                                feedback.innerHTML = `<span style="color:#b91c1c;"><i class="fa-solid fa-circle-dot fa-fade" style="color:#ef4444;"></i> Escuchando: <i>"${interim}"</i></span>`;
+                            }
+                        };
+
+                        recognition.onerror = (e) => {
+                            console.warn('SpeechRecognition error:', e.error);
+                            if (e.error === 'no-speech') return;
+                            isDictating = false;
+                            setNormalButtonUI();
+                            feedback.style.display = 'flex';
+                            feedback.style.background = '#fffbeb';
+                            feedback.style.border = '1px solid #fde68a';
+                            feedback.style.color = '#b45309';
+                            if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+                                feedback.innerHTML = '<i class="fa-solid fa-triangle-exclamation" style="color:#d97706;"></i> <b>Permiso denegado:</b> Debes permitir el uso del micrófono en el navegador para dictar.';
+                            } else if (e.error === 'network') {
+                                feedback.innerHTML = '<i class="fa-solid fa-wifi" style="color:#d97706;"></i> Se necesita conexión a Internet para el dictado por voz.';
+                            } else {
+                                feedback.innerHTML = `<i class="fa-solid fa-circle-exclamation"></i> Aviso de micrófono: ${e.error}`;
+                            }
+                        };
+
+                        recognition.onend = () => {
+                            if (isDictating) {
+                                try {
+                                    recognition.start();
+                                } catch (err) {
+                                    isDictating = false;
+                                    setNormalButtonUI();
+                                }
+                            } else {
+                                setNormalButtonUI();
+                            }
+                        };
+
+                        recognition.start();
+                    } catch (err) {
+                        console.error('Error starting recognition:', err);
+                        isDictating = false;
+                        setNormalButtonUI();
+                    }
+                };
+
+                btnDictate.addEventListener('click', startVoiceDictation);
+
+                if (autoStartDictation) {
+                    setTimeout(() => {
+                        startVoiceDictation();
+                    }, 350);
+                }
+            }
+        }).then((result) => {
+            if (result.isConfirmed) {
+                const newSpeaker = document.getElementById('swalSpeaker').value.trim();
+                const newContent = document.getElementById('swalContent').value;
+                const syncDur = document.getElementById('swalSyncDuration').checked;
+
+                block.speaker = newSpeaker;
+                block.content = newContent;
+
+                const words = newContent.trim().split(/\s+/).filter(w => w.length > 0).length;
+                const sec = Math.max(2, Math.round((words / 130) * 60));
+
+                if (syncDur) {
+                    const newEnd = secondsToTime(timeToSeconds(block.startTime) + sec);
+                    block.endTime = newEnd;
+                    if (endInput) endInput.value = newEnd;
+                    if (typeof updateDurationDisplay === 'function') updateDurationDisplay();
+                }
+
+                this.syncFullProgramDurations();
+                this.render();
+                this.notifyUpdate();
+            }
         });
     }
 }

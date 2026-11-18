@@ -4,7 +4,7 @@ import { cloudinaryService } from './services/cloudinaryService.js';
 import { setupUserProfile } from './utils/profileUI.js?v=12';
 import { dbService } from './services/dbService.js?v=8';
 import { Program, DEFAULT_SOUNDBOARD } from './models/Program.js';
-import { EscaletaUI } from './components/EscaletaUI.js?v=8';
+import { EscaletaUI } from './components/EscaletaUI.js?v=9';
 import { GanttUI } from './components/GanttUI.js?v=5';
 import { downloadPDF } from './utils/pdfGenerator.js?v=2';
 
