@@ -647,7 +647,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         fileInput.click();
     });
-}
+});
 
 // Lógica de Modales
 const modal = document.getElementById('libraryModal');
@@ -1191,4 +1191,4 @@ window.addAudioWithTimeCalculation = function(title, rawUrl, category) {
             setTimeout(() => addAndResolve(0), 4000);
         });
     });
-});
+};
