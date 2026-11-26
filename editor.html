@@ -236,24 +236,8 @@
     <div id="externalLibsModal" class="modal">
         <div class="modal-content" style="max-width: 600px;">
             <span class="close-modal" id="closeExternalLibs">&times;</span>
-            <h2>Bibliotecas de Sonido</h2>
-            
-            <div style="margin: 20px 0; background: #f9f9f9; padding: 15px; border-radius: 8px; border: 1px solid #ddd;">
-                <h3 style="margin-bottom: 10px; color: #4caf50; font-size: 16px;"><i class="fa-solid fa-box-open"></i> Audios Integrados (Listos para usar)</h3>
-                <p style="font-size: 13px; margin-bottom: 10px; color: #555;">Haz clic en uno de estos botones para añadirlo automáticamente al final de tu escaleta:</p>
-                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                    <button class="btn btn-secondary" style="font-size: 12px; padding: 5px 10px;" onclick="addIntegratedAudio('Sintonía Noticias', 'assets/sounds/sintonia_noticias.mp3', 'sintonia')">Sintonía Noticias</button>
-                    <button class="btn btn-secondary" style="font-size: 12px; padding: 5px 10px;" onclick="addIntegratedAudio('Música Tranquila', 'assets/sounds/musica_tranquila.mp3', 'musica')">Música Tranquila</button>
-                    <button class="btn btn-secondary" style="font-size: 12px; padding: 5px 10px;" onclick="addIntegratedAudio('Aplausos', 'assets/sounds/aplausos.mp3', 'efectos')">Aplausos</button>
-                    <button class="btn btn-secondary" style="font-size: 12px; padding: 5px 10px;" onclick="addIntegratedAudio('Risas', 'assets/sounds/risas.mp3', 'efectos')">Risas</button>
-                    <button class="btn btn-secondary" style="font-size: 12px; padding: 5px 10px;" onclick="addIntegratedAudio('Campanilla', 'assets/sounds/campanilla.mp3', 'efectos')">Campanilla</button>
-                </div>
-            </div>
-
-            <hr style="margin: 20px 0; border: 0; border-top: 1px solid #ccc;">
-
-            <h3 style="margin-bottom: 10px; font-size: 16px;"><i class="fa-solid fa-globe"></i> Bibliotecas Externas (Para descargar)</h3>
-            <p style="margin-top: 10px; margin-bottom: 20px; font-size: 13px; color: #555;">Descarga audios gratuitos desde estas páginas y luego usa el botón "Añadir audio" para subirlos a tu escaleta.</p>
+            <h2>Bibliotecas de Sonido Externas</h2>
+            <p style="margin-top: 10px; margin-bottom: 20px; font-size: 13px; color: #555;">Descarga audios gratuitos libres de derechos desde estas páginas y luego usa el botón «Subir» para añadirlos a tu escaleta o sintonías precargadas.</p>
             
             <ul class="library-list">
                 <li class="library-item" style="display: flex; flex-direction: column; align-items: flex-start; gap: 5px;">
@@ -325,7 +309,7 @@
     <audio id="globalAudioPlayer" style="display:none;"></audio>
 
     <!-- Scripts (Módulos JS) -->
-    <script type="module" src="./js/editor.js?v=58"></script>
+    <script type="module" src="./js/editor.js?v=59"></script>
     <div id="toastMessage" style="visibility: hidden; min-width: 250px; background-color: #333; color: #fff; text-align: center; border-radius: 5px; padding: 16px; position: fixed; z-index: 2000; left: 50%; bottom: 30px; transform: translateX(-50%); opacity: 0; transition: opacity 0.3s, visibility 0.3s;">Guardado correctamente</div>
 </body>
 </html>

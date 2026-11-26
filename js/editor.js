@@ -82,27 +82,53 @@ let sharedLibrary = {
     musica: [...defaultLibrary.musica]
 };
 
+function normalizeSoundCategory(rawCategory) {
+    if (!rawCategory) return 'sintonias';
+    const c = String(rawCategory).toLowerCase().trim().replace('-', '_');
+    if (c === 'sintonias_precargadas' || c === 'sintonia_precargada' || c === 'precargadas' || c === 'precargada') {
+        return 'sintonias_precargadas';
+    }
+    if (c === 'sintonia' || c === 'sintonias') {
+        return 'sintonias';
+    }
+    if (c === 'musica' || c === 'musicas') {
+        return 'musica';
+    }
+    if (c === 'efecto' || c === 'efectos') {
+        return 'efectos';
+    }
+    return c;
+}
+
+let activeModalCategory = null;
+
 function loadSharedLibrary() {
-    dbService.getSoundLibrary().then(sounds => {
+    return dbService.getSoundLibrary().then(sounds => {
         if (sounds && sounds.length > 0) {
             const newLib = { sintonias: [], sintonias_precargadas: [], efectos: [], musica: [] };
             sounds.forEach(s => {
-                const cat = (s.category === 'sintonias-precargadas' || s.category === 'sintonias_precargadas')
-                    ? 'sintonias_precargadas'
-                    : s.category;
+                const cat = normalizeSoundCategory(s.category);
                 if (!newLib[cat]) newLib[cat] = [];
                 newLib[cat].push({ 
                     title: s.title, 
                     url: s.url, 
                     publicId: s.publicId || null,
-                    icon: s.icon || 'fa-star',
+                    icon: s.icon || (cat === 'sintonias_precargadas' ? 'fa-star' : 'fa-music'),
                     docId: s.docId || s.id 
                 });
             });
             sharedLibrary = newLib;
+
+            // Si el modal de librería está actualmente visible con una categoría abierta, actualizar la lista en vivo
+            const listWrapper = document.getElementById('modalAudioListWrapper');
+            if (listWrapper && listWrapper.style.display !== 'none' && activeModalCategory) {
+                renderCategoryAudioList(activeModalCategory, false);
+            }
         }
+        return sharedLibrary;
     }).catch(e => {
         console.warn('Aviso cargando librería en segundo plano:', e);
+        return sharedLibrary;
     });
 }
 
@@ -232,6 +258,9 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         currentUser = user;
+
+        // Cargar inmediatamente la librería compartida ya con el token de auth
+        loadSharedLibrary();
 
         // Actualizar datos de usuario en segundo plano (fire-and-forget)
         dbService.saveUser(user).catch(() => {});
@@ -505,6 +534,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:4px;">Canal / Categoría en la escaleta:</label>
                                 <select id="swalUploadCat" style="width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;">
                                     <option value="sintonia">🎙️ Sintonía (cabecera, ráfaga o cierre)</option>
+                                    <option value="sintonias_precargadas">⭐ Sintonía Precargada (compartida para todos)</option>
                                     <option value="efectos">⚡ Efecto de sonido</option>
                                     <option value="musica">🎵 Música de fondo</option>
                                 </select>
@@ -530,7 +560,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         const catSel = document.getElementById('swalUploadCat');
                         const check = document.getElementById('swalAssignPreloaded');
                         catSel.addEventListener('change', () => {
-                            if (catSel.value === 'sintonia') {
+                            if (catSel.value === 'sintonia' || catSel.value === 'sintonias_precargadas') {
                                 check.checked = true;
                             }
                         });
@@ -586,7 +616,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const status = document.getElementById('uploadStatusText');
                 if (status) status.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Añadiendo a la escaleta...';
 
-                await window.addAudioWithTimeCalculation(finalTitle, result.url, chosenCategory);
+                const escaletaCat = (chosenCategory === 'sintonias_precargadas') ? 'sintonia' : chosenCategory;
+                await window.addAudioWithTimeCalculation(finalTitle, result.url, escaletaCat);
 
                 // 5. Guardar en Firestore sounds si se marcó como Sintonía Precargada
                 if (assignPreloaded || chosenCategory === 'sintonias_precargadas') {
@@ -616,6 +647,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             docId: newSoundId
                         });
                         console.log("Sintonía precargada registrada con éxito en Firestore:", newSoundId);
+                        
+                        // Refrescar en segundo plano para asegurar consistencia
+                        loadSharedLibrary();
                     } catch (dbErr) {
                         console.error("No se pudo registrar en Firestore sounds:", dbErr);
                         Swal.fire({
@@ -848,6 +882,9 @@ function openLibraryModal(category = null, onSelect = null) {
         };
     }
 
+    // Refrescar la librería de sonidos en segundo plano para asegurar que siempre esté actualizada
+    loadSharedLibrary();
+
     const chooserView = document.getElementById('modalCategoryChooser');
     const listWrapper = document.getElementById('modalAudioListWrapper');
     const tabsBar = document.getElementById('modalTabsBar');
@@ -855,6 +892,7 @@ function openLibraryModal(category = null, onSelect = null) {
     const modalTitle = document.getElementById('modalTitle');
 
     if (!category) {
+        activeModalCategory = null;
         // Modo selector: Elegir entre Sintonías, Música de fondo o Sintonías precargadas
         if (chooserView) chooserView.style.display = 'block';
         if (listWrapper) listWrapper.style.display = 'none';
@@ -869,8 +907,9 @@ function openLibraryModal(category = null, onSelect = null) {
     modal.style.display = "block";
 }
 
-function renderCategoryAudioList(category) {
+function renderCategoryAudioList(category, reloadIfEmpty = true) {
     stopPreviewAudio();
+    activeModalCategory = category;
 
     const chooserView = document.getElementById('modalCategoryChooser');
     const listWrapper = document.getElementById('modalAudioListWrapper');
@@ -920,22 +959,70 @@ function renderCategoryAudioList(category) {
         }
     }
 
+    // Si la lista está vacía o es preloaded, pedir datos frescos a Firestore
+    if (reloadIfEmpty && (items.length === 0 || isPreloaded)) {
+        if (items.length === 0) {
+            list.innerHTML = `
+                <div style="text-align:center; padding:35px 20px; color:#64748b;">
+                    <i class="fa-solid fa-spinner fa-spin" style="font-size:26px; color:#00acc1; margin-bottom:10px; display:block;"></i>
+                    <p style="font-size:13px; font-weight:600; color:#334155; margin:0;">Cargando sintonías de la biblioteca...</p>
+                </div>
+            `;
+        }
+        loadSharedLibrary().then(() => {
+            if (activeModalCategory === category) {
+                renderCategoryAudioList(category, false);
+            }
+        });
+        if (items.length === 0) return;
+    }
+
     list.innerHTML = '';
     if (items.length === 0) {
         if (isPreloaded) {
             list.innerHTML = `
-                <div style="text-align:center; padding:35px 20px; color:#64748b; background:#f8fafc; border-radius:10px; border:1px dashed #cbd5e1; margin:10px 0;">
-                    <i class="fa-solid fa-music" style="font-size:32px; color:#cbd5e1; margin-bottom:10px; display:block;"></i>
+                <div style="text-align:center; padding:30px 20px; color:#64748b; background:#f8fafc; border-radius:10px; border:1px dashed #cbd5e1; margin:10px 0;">
+                    <i class="fa-solid fa-star" style="font-size:32px; color:#f59e0b; margin-bottom:10px; display:block;"></i>
                     <p style="font-size:15px; font-weight:600; color:#334155; margin:0 0 6px 0;">(Aún no hay sintonías precargadas)</p>
-                    <p style="font-size:12px; color:#64748b; margin:0; line-height:1.4;">
+                    <p style="font-size:12px; color:#64748b; margin:0 0 14px 0; line-height:1.4;">
                         Los profesores pueden subir melodías desde el botón <b>«Subir»</b> y marcarlas como sintonía precargada para que aparezcan aquí disponibles para todos.
                     </p>
+                    <button type="button" id="btnUploadInPreloadedEmpty" style="background:linear-gradient(135deg, #00acc1, #00838f); color:white; border:none; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
+                        <i class="fa-solid fa-cloud-arrow-up"></i> Subir sintonía precargada ahora
+                    </button>
                 </div>
             `;
+            const btnUp = document.getElementById('btnUploadInPreloadedEmpty');
+            if (btnUp) {
+                btnUp.onclick = () => {
+                    const btnUploadDrive = document.getElementById('btnUploadDrive');
+                    if (btnUploadDrive) btnUploadDrive.click();
+                };
+            }
         } else {
             list.innerHTML = '<li style="color:#aaa; padding:15px; text-align:center;">No hay audios disponibles en esta categoría.</li>';
         }
     } else {
+        if (isPreloaded) {
+            // Barra superior con botón rápido para subir más sintonías precargadas
+            const headerRow = document.createElement('div');
+            headerRow.style.cssText = 'display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; padding:6px 10px; background:#f8fafc; border-radius:6px; border:1px solid #e2e8f0;';
+            headerRow.innerHTML = `
+                <span style="font-size:12px; color:#475569; font-weight:600;"><i class="fa-solid fa-star" style="color:#f59e0b;"></i> ${items.length} sintonía(s) precargada(s)</span>
+                <button type="button" id="btnUploadMorePreloaded" style="background:#00acc1; color:white; border:none; border-radius:5px; padding:4px 10px; font-size:11px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:5px;">
+                    <i class="fa-solid fa-plus"></i> Subir otra sintonía
+                </button>
+            `;
+            list.appendChild(headerRow);
+            const btnMore = headerRow.querySelector('#btnUploadMorePreloaded');
+            if (btnMore) {
+                btnMore.onclick = () => {
+                    const btnUploadDrive = document.getElementById('btnUploadDrive');
+                    if (btnUploadDrive) btnUploadDrive.click();
+                };
+            }
+        }
+
         items.forEach(item => {
             const li = document.createElement('li');
             li.className = 'library-item';
@@ -1145,14 +1232,7 @@ function openConfigureSoundboardModal(pad, index) {
     });
 }
 
-// Exponer addIntegratedAudio globalmente
-window.addIntegratedAudio = function(title, url, category) {
-    window.addAudioWithTimeCalculation(title, url, category);
-    const externalLibsModal = document.getElementById('externalLibsModal');
-    if (externalLibsModal) {
-        externalLibsModal.style.display = "none";
-    }
-}
+
 
 window.addAudioWithTimeCalculation = function(title, rawUrl, category) {
     return new Promise((resolve) => {
