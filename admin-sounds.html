@@ -278,8 +278,55 @@ authService.onAuthStateChanged(async (user) => {
     await loadSounds();
 });
 
+const PRELOADED_STORAGE_KEY = 'radioescaleta_preloaded_sounds';
+
+function syncPreloadedStorage(sounds) {
+    try {
+        const stored = JSON.parse(localStorage.getItem(PRELOADED_STORAGE_KEY) || '[]');
+        const map = new Map();
+        // Cargar lo guardado previamente
+        stored.forEach(s => { if (s.url) map.set(s.url, s); });
+        // Sincronizar los de categoría sintonias_precargadas
+        sounds.forEach(s => {
+            const isPrec = (s.category === 'sintonias_precargadas' || s.category === 'sintonias-precargadas');
+            if (isPrec && s.url) {
+                map.set(s.url, {
+                    title: s.title,
+                    url: s.url,
+                    publicId: s.publicId || null,
+                    icon: s.icon || 'fa-star',
+                    docId: s.docId,
+                    category: 'sintonias_precargadas'
+                });
+            }
+        });
+        const updated = Array.from(map.values());
+        localStorage.setItem(PRELOADED_STORAGE_KEY, JSON.stringify(updated));
+        return updated;
+    } catch(e) {
+        console.warn('Error sincronizando localStorage:', e);
+        return [];
+    }
+}
+
 async function loadSounds() {
     allSounds = await dbService.getSoundLibrary();
+    // Consolidar sintonías precargadas con localStorage
+    const localPreloaded = syncPreloadedStorage(allSounds);
+    // Si hay sintonías en localStorage que Firestore aún no devolvió, añadirlas a allSounds
+    localPreloaded.forEach(lp => {
+        const exists = allSounds.some(s => s.url === lp.url || s.title === lp.title);
+        if (!exists) {
+            allSounds.push({
+                docId: lp.docId || ('local_' + Date.now()),
+                title: lp.title,
+                url: lp.url,
+                publicId: lp.publicId || null,
+                category: 'sintonias_precargadas',
+                icon: lp.icon || 'fa-star'
+            });
+        }
+    });
     renderGrid();
     updateBadges();
 }
@@ -404,6 +451,7 @@ function editSound(docId) {
         await dbService.updateSound(docId, r.value);
         const idx = allSounds.findIndex(s => s.docId === docId);
         if (idx !== -1) allSounds[idx] = { ...allSounds[idx], ...r.value };
+        syncPreloadedStorage(allSounds);
         renderGrid(); updateBadges();
     });
 }
@@ -433,6 +481,11 @@ async function deleteSound(docId, title) {
 
     await dbService.deleteSound(docId);
     allSounds = allSounds.filter(s => s.docId !== docId);
+    try {
+        const stored = JSON.parse(localStorage.getItem(PRELOADED_STORAGE_KEY) || '[]');
+        const filtered = stored.filter(s => s.docId !== docId && s.title !== title);
+        localStorage.setItem(PRELOADED_STORAGE_KEY, JSON.stringify(filtered));
+    } catch (_) {}
     renderGrid(); updateBadges();
 }
 
@@ -471,6 +524,9 @@ async function handleFiles(files) {
             };
             const newId = await dbService.addSound({ title, url, publicId, category: currentCat, icon: iconMap[currentCat], order: allSounds.length });
             allSounds.push({ docId: newId, title, url, publicId, category: currentCat, icon: iconMap[currentCat] });
+            if (currentCat === 'sintonias_precargadas' || currentCat === 'sintonias-precargadas') {
+                syncPreloadedStorage(allSounds);
+            }
             uploaded++;
         } catch(e) {
             Swal.fire('Error', `No se pudo subir ${file.name}: ${e.message}`, 'error');

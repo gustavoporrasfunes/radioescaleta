@@ -75,27 +75,70 @@ const defaultLibrary = {
     ]
 };
 
+const PRELOADED_SOUNDS_STORAGE_KEY = 'radioescaleta_preloaded_sounds';
+
+function getStoredPreloadedSounds() {
+    try {
+        const stored = localStorage.getItem(PRELOADED_SOUNDS_STORAGE_KEY);
+        return stored ? JSON.parse(stored) : [];
+    } catch (e) {
+        console.warn('Error leyendo sintonías precargadas de localStorage:', e);
+        return [];
+    }
+}
+
+function saveStoredPreloadedSounds(sounds) {
+    try {
+        localStorage.setItem(PRELOADED_SOUNDS_STORAGE_KEY, JSON.stringify(sounds));
+    } catch (e) {
+        console.warn('Error guardando sintonías precargadas en localStorage:', e);
+    }
+}
+
+function addPreloadedSoundLocally(sound) {
+    const list = getStoredPreloadedSounds();
+    const cleanUrl = (sound.url || '').trim();
+    const cleanTitle = (sound.title || '').trim();
+    const idx = list.findIndex(s => (cleanUrl && s.url === cleanUrl) || (cleanTitle && s.title.toLowerCase() === cleanTitle.toLowerCase()));
+    const item = {
+        title: sound.title,
+        url: sound.url,
+        publicId: sound.publicId || null,
+        icon: sound.icon || 'fa-star',
+        docId: sound.docId || ('local_' + Date.now()),
+        category: 'sintonias_precargadas',
+        createdAt: sound.createdAt || new Date().toISOString()
+    };
+    if (idx !== -1) {
+        list[idx] = { ...list[idx], ...item };
+    } else {
+        list.unshift(item);
+    }
+    saveStoredPreloadedSounds(list);
+    return item;
+}
+
 let sharedLibrary = {
     sintonias: [...defaultLibrary.sintonias],
-    sintonias_precargadas: [],
+    sintonias_precargadas: getStoredPreloadedSounds(),
     efectos: [...defaultLibrary.efectos],
     musica: [...defaultLibrary.musica]
 };
 
 function normalizeSoundCategory(rawCategory) {
     if (!rawCategory) return 'sintonias';
-    const c = String(rawCategory).toLowerCase().trim().replace('-', '_');
-    if (c === 'sintonias_precargadas' || c === 'sintonia_precargada' || c === 'precargadas' || c === 'precargada') {
+    const c = String(rawCategory).toLowerCase().trim().replace(/[-\s]/g, '_');
+    if (c.includes('precarga') || c === 'sintonias_precargadas' || c === 'sintonia_precargada') {
         return 'sintonias_precargadas';
     }
-    if (c === 'sintonia' || c === 'sintonias') {
-        return 'sintonias';
-    }
-    if (c === 'musica' || c === 'musicas') {
+    if (c.includes('musica')) {
         return 'musica';
     }
-    if (c === 'efecto' || c === 'efectos') {
+    if (c.includes('efecto')) {
         return 'efectos';
+    }
+    if (c.includes('sintonia')) {
+        return 'sintonias';
     }
     return c;
 }
@@ -103,6 +146,14 @@ function normalizeSoundCategory(rawCategory) {
 let activeModalCategory = null;
 
 function loadSharedLibrary() {
+    // 1. Asegurar que memoria tiene lo guardado en localStorage
+    const localSounds = getStoredPreloadedSounds();
+    if (localSounds.length > 0) {
+        if (!sharedLibrary.sintonias_precargadas || sharedLibrary.sintonias_precargadas.length === 0) {
+            sharedLibrary.sintonias_precargadas = [...localSounds];
+        }
+    }
+
     return dbService.getSoundLibrary().then(sounds => {
         if (sounds && sounds.length > 0) {
             const newLib = { sintonias: [], sintonias_precargadas: [], efectos: [], musica: [] };
@@ -114,9 +165,27 @@ function loadSharedLibrary() {
                     url: s.url, 
                     publicId: s.publicId || null,
                     icon: s.icon || (cat === 'sintonias_precargadas' ? 'fa-star' : 'fa-music'),
-                    docId: s.docId || s.id 
+                    docId: s.docId || s.id,
+                    createdAt: s.createdAt || null
                 });
             });
+
+            // FUSIONAR: combinar las sintonías precargadas de Firestore con las de localStorage
+            const mergedPreloaded = [...newLib.sintonias_precargadas];
+            const currentLocal = getStoredPreloadedSounds();
+            currentLocal.forEach(loc => {
+                const exists = mergedPreloaded.some(m => (loc.url && m.url === loc.url) || (loc.title && m.title === loc.title));
+                if (!exists) {
+                    mergedPreloaded.push(loc);
+                }
+            });
+            newLib.sintonias_precargadas = mergedPreloaded;
+
+            // Guardar de vuelta en localStorage para persistencia offline instantánea
+            if (mergedPreloaded.length > 0) {
+                saveStoredPreloadedSounds(mergedPreloaded);
+            }
+
             sharedLibrary = newLib;
 
             // Si el modal de librería está actualmente visible con una categoría abierta, actualizar la lista en vivo
@@ -124,10 +193,20 @@ function loadSharedLibrary() {
             if (listWrapper && listWrapper.style.display !== 'none' && activeModalCategory) {
                 renderCategoryAudioList(activeModalCategory, false);
             }
+        } else {
+            // Si Firestore devolvió vacío o falló, asegurar que mantenemos lo local
+            const currentLocal = getStoredPreloadedSounds();
+            if (currentLocal.length > 0) {
+                sharedLibrary.sintonias_precargadas = [...currentLocal];
+            }
         }
         return sharedLibrary;
     }).catch(e => {
         console.warn('Aviso cargando librería en segundo plano:', e);
+        const currentLocal = getStoredPreloadedSounds();
+        if (currentLocal.length > 0) {
+            sharedLibrary.sintonias_precargadas = [...currentLocal];
+        }
         return sharedLibrary;
     });
 }
@@ -521,6 +600,10 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const cleanName = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ");
 
+                // Detectar si el usuario venía desde el modal de Sintonías Precargadas
+                const wantsPreloaded = (window._uploadCategoryPreset === 'sintonias_precargadas' || activeModalCategory === 'sintonias_precargadas');
+                window._uploadCategoryPreset = null; // resetear preset
+
                 // 1. Preguntar título, categoría y opción de Sintonía Precargada
                 const catResult = await Swal.fire({
                     title: '<div style="color:#00acc1;display:flex;align-items:center;gap:8px;justify-content:center;"><i class="fa-solid fa-cloud-arrow-up"></i> Subir Audio</div>',
@@ -533,8 +616,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             <div>
                                 <label style="font-size:13px;font-weight:600;color:#334155;display:block;margin-bottom:4px;">Canal / Categoría en la escaleta:</label>
                                 <select id="swalUploadCat" style="width:100%;box-sizing:border-box;padding:8px 12px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;">
-                                    <option value="sintonia">🎙️ Sintonía (cabecera, ráfaga o cierre)</option>
-                                    <option value="sintonias_precargadas">⭐ Sintonía Precargada (compartida para todos)</option>
+                                    <option value="sintonia" ${!wantsPreloaded ? 'selected' : ''}>🎙️ Sintonía (cabecera, ráfaga o cierre)</option>
+                                    <option value="sintonias_precargadas" ${wantsPreloaded ? 'selected' : ''}>⭐ Sintonía Precargada (compartida para todos)</option>
                                     <option value="efectos">⚡ Efecto de sonido</option>
                                     <option value="musica">🎵 Música de fondo</option>
                                 </select>
@@ -619,16 +702,32 @@ document.addEventListener('DOMContentLoaded', () => {
                 const escaletaCat = (chosenCategory === 'sintonias_precargadas') ? 'sintonia' : chosenCategory;
                 await window.addAudioWithTimeCalculation(finalTitle, result.url, escaletaCat);
 
-                // 5. Guardar en Firestore sounds si se marcó como Sintonía Precargada
+                // 5. Guardar de forma inmediata e infalible en Sintonías Precargadas si aplica
                 if (assignPreloaded || chosenCategory === 'sintonias_precargadas') {
-                    try {
-                        if (!sharedLibrary) {
-                            sharedLibrary = { sintonias: [], sintonias_precargadas: [], efectos: [], musica: [] };
-                        }
-                        if (!sharedLibrary.sintonias_precargadas) {
-                            sharedLibrary.sintonias_precargadas = [];
-                        }
+                    // A. Guardar de inmediato en localStorage y memoria activa
+                    const localSound = addPreloadedSoundLocally({
+                        title: finalTitle,
+                        url: result.url,
+                        publicId: result.id || null,
+                        icon: 'fa-star'
+                    });
 
+                    if (!sharedLibrary.sintonias_precargadas) {
+                        sharedLibrary.sintonias_precargadas = [];
+                    }
+                    const alreadyInMem = sharedLibrary.sintonias_precargadas.some(s => s.url === result.url);
+                    if (!alreadyInMem) {
+                        sharedLibrary.sintonias_precargadas.unshift(localSound);
+                    }
+
+                    // B. Si el modal de sintonías precargadas está actualmente en pantalla, actualizarlo inmediatamente
+                    const listWrapper = document.getElementById('modalAudioListWrapper');
+                    if (listWrapper && listWrapper.style.display !== 'none' && activeModalCategory === 'sintonias_precargadas') {
+                        renderCategoryAudioList('sintonias_precargadas', false);
+                    }
+
+                    // C. Intentar sincronizar con Firestore sounds en la nube
+                    try {
                         const orderCount = sharedLibrary.sintonias_precargadas.length;
                         const newSoundId = await dbService.addSound({
                             title: finalTitle,
@@ -638,36 +737,24 @@ document.addEventListener('DOMContentLoaded', () => {
                             icon: 'fa-star',
                             order: orderCount
                         });
-
-                        sharedLibrary.sintonias_precargadas.unshift({
-                            title: finalTitle,
-                            url: result.url,
-                            publicId: result.id || null,
-                            icon: 'fa-star',
-                            docId: newSoundId
-                        });
-                        console.log("Sintonía precargada registrada con éxito en Firestore:", newSoundId);
-                        
-                        // Refrescar en segundo plano para asegurar consistencia
-                        loadSharedLibrary();
+                        if (newSoundId) {
+                            localSound.docId = newSoundId;
+                            addPreloadedSoundLocally(localSound);
+                            console.log("Sintonía precargada registrada con éxito en Firestore:", newSoundId);
+                        }
                     } catch (dbErr) {
-                        console.error("No se pudo registrar en Firestore sounds:", dbErr);
-                        Swal.fire({
-                            toast: true,
-                            position: "bottom",
-                            icon: "warning",
-                            title: "Atención: No se pudo guardar en Sintonías Precargadas: " + (dbErr.message || "Error"),
-                            showConfirmButton: false,
-                            timer: 4000
-                        });
+                        console.warn("Aviso: No se pudo registrar en Firestore sounds (pero queda disponible localmente):", dbErr);
                     }
+
+                    // D. Refrescar librería completa en segundo plano
+                    loadSharedLibrary();
                 }
 
                 // 6. Confirmación final una vez visible en la escaleta
                 Swal.fire({
                     icon: 'success',
                     title: '¡Audio añadido!',
-                    html: `<b>"${finalTitle}"</b> se ha añadido a la escaleta${assignPreloaded ? ' y guardado en <b>Sintonías Precargadas</b>' : ''}.`,
+                    html: `<b>"${finalTitle}"</b> se ha añadido a la escaleta${(assignPreloaded || chosenCategory === 'sintonias_precargadas') ? ' y guardado en <b>Sintonías Precargadas</b>' : ''}.`,
                     timer: 2200,
                     showConfirmButton: false
                 });
@@ -948,7 +1035,16 @@ function renderCategoryAudioList(category, reloadIfEmpty = true) {
 
     let items = [];
     if (isPreloaded) {
-        items = (sharedLibrary && sharedLibrary.sintonias_precargadas) ? [...sharedLibrary.sintonias_precargadas] : [];
+        const localList = getStoredPreloadedSounds();
+        const memList = (sharedLibrary && Array.isArray(sharedLibrary.sintonias_precargadas)) ? sharedLibrary.sintonias_precargadas : [];
+        const combined = [...memList];
+        localList.forEach(l => {
+            if (!combined.some(c => (l.url && c.url === l.url) || (l.title && c.title === l.title))) {
+                combined.push(l);
+            }
+        });
+        items = combined;
+        sharedLibrary.sintonias_precargadas = combined;
     } else {
         if (sharedLibrary && Array.isArray(sharedLibrary[category])) {
             // Mostramos exactamente los audios de Firestore (respetando los audios borrados por el usuario)
@@ -980,6 +1076,37 @@ function renderCategoryAudioList(category, reloadIfEmpty = true) {
     list.innerHTML = '';
     if (items.length === 0) {
         if (isPreloaded) {
+            // Comprobar si hay bloques de audio ya existentes en esta escaleta para importarlos con 1 clic
+            const escaletaAudios = (currentProgram && Array.isArray(currentProgram.blocks))
+                ? currentProgram.blocks.filter(b => b.type === 'audio' && b.audioUrl)
+                : [];
+
+            let importHtml = '';
+            if (escaletaAudios.length > 0) {
+                importHtml = `
+                    <div style="margin-top:16px; padding:12px 14px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; text-align:left;">
+                        <p style="font-size:12px; font-weight:700; color:#166534; margin:0 0 6px 0; display:flex; align-items:center; gap:6px;">
+                            <i class="fa-solid fa-wand-magic-sparkles" style="color:#16a34a;"></i> Audios detectados en esta escaleta:
+                        </p>
+                        <p style="font-size:11px; color:#15803d; margin:0 0 10px 0;">
+                            Puedes añadir cualquiera de estos audios a tu lista de sintonías precargadas con un clic:
+                        </p>
+                        <div style="display:flex; flex-direction:column; gap:6px;">
+                            ${escaletaAudios.map((b, idx) => `
+                                <div style="display:flex; justify-content:space-between; align-items:center; background:#ffffff; padding:6px 10px; border-radius:6px; border:1px solid #dcfce7;">
+                                    <span style="font-size:12px; font-weight:600; color:#1f2937; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:240px;">
+                                        <i class="fa-solid fa-music" style="color:#00acc1; margin-right:6px;"></i>${b.title || 'Audio ' + (idx + 1)}
+                                    </span>
+                                    <button type="button" class="btn-import-escaleta-audio" data-title="${encodeURIComponent(b.title || '')}" data-url="${encodeURIComponent(b.audioUrl || '')}" style="background:#16a34a; color:#fff; border:none; padding:4px 10px; border-radius:5px; font-size:11px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:4px;">
+                                        <i class="fa-solid fa-star"></i> Añadir a precargadas
+                                    </button>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+
             list.innerHTML = `
                 <div style="text-align:center; padding:30px 20px; color:#64748b; background:#f8fafc; border-radius:10px; border:1px dashed #cbd5e1; margin:10px 0;">
                     <i class="fa-solid fa-star" style="font-size:32px; color:#f59e0b; margin-bottom:10px; display:block;"></i>
@@ -990,15 +1117,46 @@ function renderCategoryAudioList(category, reloadIfEmpty = true) {
                     <button type="button" id="btnUploadInPreloadedEmpty" style="background:linear-gradient(135deg, #00acc1, #00838f); color:white; border:none; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
                         <i class="fa-solid fa-cloud-arrow-up"></i> Subir sintonía precargada ahora
                     </button>
+                    ${importHtml}
                 </div>
             `;
             const btnUp = document.getElementById('btnUploadInPreloadedEmpty');
             if (btnUp) {
                 btnUp.onclick = () => {
+                    window._uploadCategoryPreset = 'sintonias_precargadas';
                     const btnUploadDrive = document.getElementById('btnUploadDrive');
                     if (btnUploadDrive) btnUploadDrive.click();
                 };
             }
+
+            list.querySelectorAll('.btn-import-escaleta-audio').forEach(btn => {
+                btn.onclick = async () => {
+                    const soundTitle = decodeURIComponent(btn.dataset.title);
+                    const soundUrl = decodeURIComponent(btn.dataset.url);
+                    const localItem = addPreloadedSoundLocally({
+                        title: soundTitle,
+                        url: soundUrl,
+                        icon: 'fa-star'
+                    });
+                    if (!sharedLibrary.sintonias_precargadas) sharedLibrary.sintonias_precargadas = [];
+                    sharedLibrary.sintonias_precargadas.unshift(localItem);
+                    dbService.addSound({
+                        title: soundTitle,
+                        url: soundUrl,
+                        category: 'sintonias_precargadas',
+                        icon: 'fa-star',
+                        order: sharedLibrary.sintonias_precargadas.length
+                    }).catch(e => console.warn("Aviso Firestore:", e));
+                    renderCategoryAudioList('sintonias_precargadas', false);
+                    Swal.fire({
+                        icon: 'success',
+                        title: '¡Sintonía precargada guardada!',
+                        text: `"${soundTitle}" ya está disponible en sintonías precargadas para todos los programas.`,
+                        timer: 2000,
+                        showConfirmButton: false
+                    });
+                };
+            });
         } else {
             list.innerHTML = '<li style="color:#aaa; padding:15px; text-align:center;">No hay audios disponibles en esta categoría.</li>';
         }
@@ -1017,6 +1175,7 @@ function renderCategoryAudioList(category, reloadIfEmpty = true) {
             const btnMore = headerRow.querySelector('#btnUploadMorePreloaded');
             if (btnMore) {
                 btnMore.onclick = () => {
+                    window._uploadCategoryPreset = 'sintonias_precargadas';
                     const btnUploadDrive = document.getElementById('btnUploadDrive');
                     if (btnUploadDrive) btnUploadDrive.click();
                 };
@@ -1028,7 +1187,7 @@ function renderCategoryAudioList(category, reloadIfEmpty = true) {
             li.className = 'library-item';
 
             const iconClass = item.icon || ((actualCategory === 'musica') ? 'fa-headphones' : 'fa-music');
-            const iconColor = (actualCategory === 'musica') ? '#0d9488' : '#e11d48';
+            const iconColor = isPreloaded ? '#f59e0b' : ((actualCategory === 'musica') ? '#0d9488' : '#e11d48');
             const icon = `<i class="fa-solid ${iconClass}" style="margin-right:10px; color:${iconColor}; width:18px; text-align:center;"></i>`;
 
             const span = document.createElement('span');
@@ -1080,6 +1239,37 @@ function renderCategoryAudioList(category, reloadIfEmpty = true) {
             actions.style.cssText = 'display:flex; align-items:center; gap:8px;';
             actions.appendChild(btnPlay);
             actions.appendChild(btnUse);
+
+            if (isPreloaded) {
+                const btnDel = document.createElement('button');
+                btnDel.type = 'button';
+                btnDel.className = 'btn btn-secondary';
+                btnDel.style.cssText = 'padding:6px 10px; font-size:12px; background:#fff1f2; color:#e11d48; border:1px solid #fecdd3; border-radius:6px; cursor:pointer; margin-left:2px;';
+                btnDel.title = 'Quitar de sintonías precargadas';
+                btnDel.innerHTML = '<i class="fa-solid fa-trash-can"></i>';
+                btnDel.onclick = async (e) => {
+                    e.stopPropagation();
+                    const conf = await Swal.fire({
+                        title: `¿Quitar "${item.title}"?`,
+                        text: 'Se eliminará de la lista de sintonías precargadas.',
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonText: 'Sí, quitar',
+                        confirmButtonColor: '#e11d48',
+                        cancelButtonText: 'Cancelar'
+                    });
+                    if (conf.isConfirmed) {
+                        const curLocal = getStoredPreloadedSounds().filter(s => s.url !== item.url && s.title !== item.title);
+                        saveStoredPreloadedSounds(curLocal);
+                        sharedLibrary.sintonias_precargadas = sharedLibrary.sintonias_precargadas.filter(s => s.url !== item.url && s.title !== item.title);
+                        if (item.docId && !String(item.docId).startsWith('local_')) {
+                            dbService.deleteSound(item.docId).catch(err => console.warn("Aviso Firestore al borrar:", err));
+                        }
+                        renderCategoryAudioList('sintonias_precargadas', false);
+                    }
+                };
+                actions.appendChild(btnDel);
+            }
 
             li.appendChild(span);
             li.appendChild(actions);
