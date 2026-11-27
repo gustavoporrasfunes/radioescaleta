@@ -624,7 +624,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             </div>
                             <div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:8px;padding:12px;">
                                 <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:13px;color:#166534;font-weight:600;">
-                                    <input type="checkbox" id="swalAssignPreloaded" style="width:18px;height:18px;accent-color:#16a34a;margin-top:2px;" checked>
+                                    <input type="checkbox" id="swalAssignPreloaded" style="width:18px;height:18px;accent-color:#16a34a;margin-top:2px;" ${wantsPreloaded ? 'checked' : ''}>
                                     <div>
                                         <span>⭐ Asignar al paquete de Sintonías Precargadas</span>
                                         <div style="font-size:11px;font-weight:normal;color:#15803d;margin-top:3px;line-height:1.4;">
@@ -643,8 +643,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         const catSel = document.getElementById('swalUploadCat');
                         const check = document.getElementById('swalAssignPreloaded');
                         catSel.addEventListener('change', () => {
-                            if (catSel.value === 'sintonia' || catSel.value === 'sintonias_precargadas') {
+                            if (catSel.value === 'sintonias_precargadas') {
                                 check.checked = true;
+                            } else {
+                                check.checked = false;
                             }
                         });
                     },
