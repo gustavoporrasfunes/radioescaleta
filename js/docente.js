@@ -1,6 +1,5 @@
 // js/docente.js
 import { authService } from './services/authService.js?v=2';
-import { classroomService } from './services/classroomService.js?v=2';
 import { setupUserProfile } from './utils/profileUI.js?v=12';
 import { dbService } from './services/dbService.js?v=6';
 
@@ -11,99 +10,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnInviteAlumno = document.getElementById('btnInviteAlumno');
 
     let docenteProfile = null;
-
-    const btnImportClassroom = document.getElementById('btnImportClassroom');
-    
-    btnImportClassroom.addEventListener('click', async () => {
-        if (!docenteProfile) return;
-        try {
-            btnImportClassroom.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Conectando...';
-            btnImportClassroom.disabled = true;
-
-            const accessToken = await classroomService.getAccessToken();
-            const courses = await classroomService.getTeacherCourses(accessToken);
-
-            if (courses.length === 0) {
-                Swal.fire('Sin clases', 'No eres profesor en ninguna clase activa de Google Classroom.', 'info');
-                return;
-            }
-
-            const optionsHtml = courses.map(c => `<option value="${c.id}">${c.name} ${c.section ? `(${c.section})` : ''}</option>`).join('');
-
-            const { value: courseId } = await Swal.fire({
-                title: 'Importar desde Classroom',
-                html: `
-                    <p style="margin-bottom:15px; text-align:left;">Selecciona una de tus clases:</p>
-                    <select id="classroomCourse" class="swal2-select" style="display:flex; width:100%;">
-                        ${optionsHtml}
-                    </select>
-                `,
-                showCancelButton: true,
-                confirmButtonText: 'Ver Alumnos',
-                cancelButtonText: 'Cancelar',
-                preConfirm: () => {
-                    return document.getElementById('classroomCourse').value;
-                }
-            });
-
-            if (courseId) {
-                Swal.fire({ title: 'Cargando alumnos...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-                
-                const selectedCourse = courses.find(c => c.id === courseId);
-                const className = `${selectedCourse.name} ${selectedCourse.section ? selectedCourse.section : ''}`.trim();
-                
-                const studentsData = await classroomService.getCourseStudents(courseId, accessToken);
-                if (studentsData.length === 0) {
-                    Swal.fire('Clase vacía', 'Esta clase no tiene alumnos.', 'info');
-                    return;
-                }
-
-                const confirm = await Swal.fire({
-                    title: `Importar ${studentsData.length} alumnos`,
-                    text: `¿Quieres invitar a los ${studentsData.length} alumnos de "${className}"?`,
-                    icon: 'question',
-                    showCancelButton: true,
-                    confirmButtonText: 'Sí, invitar',
-                    cancelButtonText: 'Cancelar'
-                });
-
-                if (confirm.isConfirmed) {
-                    Swal.fire({ title: 'Importando...', html: 'Añadiendo alumnos a Radioescaleta...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-                    
-                    let successCount = 0;
-                    let errorCount = 0;
-
-                    for (const student of studentsData) {
-                        console.log("Datos del alumno devueltos por Google:", student);
-                        const email = student.profile?.emailAddress;
-                        const name = student.profile?.name?.fullName || '';
-                        if (email) {
-                            try {
-                                await dbService.inviteAlumno(email, name, docenteProfile.centro, className);
-                                successCount++;
-                            } catch(e) {
-                                errorCount++;
-                            }
-                        }
-                    }
-
-                    Swal.fire(
-                        'Importación completada', 
-                        `Se han importado ${successCount} alumnos a tu centro.<br>${errorCount > 0 ? `Hubo ${errorCount} alumnos que ya estaban invitados.` : ''}`, 
-                        'success'
-                    );
-                    loadAlumnos();
-                }
-            }
-        } catch (error) {
-            Swal.fire('Error', error.message, 'error');
-        } finally {
-            btnImportClassroom.innerHTML = '<i class="fa-brands fa-google"></i> Importar desde Google Classroom';
-            btnImportClassroom.disabled = false;
-        }
-    });
-
-
 
     authService.onAuthStateChanged(async (user) => {
         if (!user) {
